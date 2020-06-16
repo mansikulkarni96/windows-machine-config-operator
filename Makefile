@@ -22,3 +22,11 @@ run-ci-e2e-test:
 .PHONY: clean
 clean:
 	rm -rf ${OUTPUT_DIR}
+
+.PHONY: run-local
+run-local:
+	hack/run-local.sh -a run
+
+.PHONY: clean-local
+clean-local:
+	hack/run-local.sh -a cleanup

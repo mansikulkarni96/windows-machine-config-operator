@@ -44,6 +44,23 @@ Example command to spin up 2 Windows nodes and retain them after test run:
 hack/run-ci-e2e-test.sh -s -k "openshift-dev" -n 2      
 ```
 
+## Running the operator locally
+To run the operator locally (for testing purpose only).
+We need to set up all the environment variables required in [Testing Locally](#testing-locally) as well as 
+```shell script
+export CONTAINER_REPO=<registry url where operator image will be hosted>
+```
+
+To install the operator on a local cluster, use: 
+```shell script
+make run-local
+```
+
+To clean-up the installation, use:
+```shell script
+make clean-local
+```
+
 ## Bundling the Windows Machine Config Operator
 This directory contains resources related to installing the WMCO onto a cluster using OLM.
 
