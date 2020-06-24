@@ -55,12 +55,6 @@ rules:
   - deployments
   verbs:
   - get
-- apiGroups:
-  - wmc.openshift.io
-  resources:
-  - '*'
-  verbs:
-  - '*'
 # Permissions to access hostnetwork SCC
 - apiGroups:
   - security.openshift.io
@@ -69,7 +63,7 @@ rules:
   resources:
   - securitycontextconstraints
   verbs:
-  - use 
+  - use
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
@@ -122,3 +116,29 @@ rules:
      - signers
    verbs:
      - approve
+ - apiGroups:
+   - "machine.openshift.io"
+   resources:
+     - "*"
+   verbs:
+     - "*"
+ - apiGroups:
+     - wmc.openshift.io
+   resources:
+     - '*'
+   verbs:
+     - '*'
+#---
+#apiVersion: rbac.authorization.k8s.io/v1
+#kind: Role
+#metadata:
+#  name : windows-openshift-machine-api
+#  namespace: openshift-machine-api
+#rules:
+#  - apiGroups:
+#      - "machine.openshift.io"
+#    resources:
+#      - "*"
+#    verbs:
+#      - list
+#      - get

@@ -37,6 +37,7 @@ replace (
 require (
 	github.com/openshift/api v0.0.0-20200422081840-fdd1b0c14c88
 	github.com/openshift/client-go v0.0.0-20200422192633-6f6c07fc2a70
+	github.com/openshift/machine-api-operator v0.2.1-0.20200324181858-17826db0ff4d
 	github.com/openshift/windows-machine-config-bootstrapper/tools/windows-node-installer v0.0.0-20200619015040-0288e17404c0
 	github.com/operator-framework/operator-sdk v0.18.1
 	github.com/pkg/errors v0.9.1

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"runtime"
+	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"strings"
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
@@ -143,9 +144,11 @@ func main() {
 		os.Exit(1)
 	}
 
+	// watch `openshift-machine-api` namespace along with wmco namespace
+	namespaces := []string{"openshift-machine-api", namespace}
 	// Create a new Cmd to provide shared dependencies and start components
 	mgr, err := manager.New(cfg, manager.Options{
-		Namespace:          namespace,
+		NewCache:           cache.MultiNamespacedCacheBuilder(namespaces),
 		MetricsBindAddress: fmt.Sprintf("%s:%d", metricsHost, metricsPort),
 	})
 	if err != nil {

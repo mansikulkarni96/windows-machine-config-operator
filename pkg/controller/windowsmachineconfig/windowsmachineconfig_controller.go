@@ -4,6 +4,9 @@ import (
 	"context"
 	"fmt"
 
+	mapiv1 "github.com/openshift/machine-api-operator/pkg/apis/machine/v1beta1"
+	"sigs.k8s.io/controller-runtime/pkg/event"
+
 	"github.com/openshift/windows-machine-config-bootstrapper/tools/windows-node-installer/pkg/cloudprovider"
 	"github.com/openshift/windows-machine-config-bootstrapper/tools/windows-node-installer/pkg/types"
 	wmcapi "github.com/openshift/windows-machine-config-operator/pkg/apis/wmc/v1alpha1"
@@ -99,6 +102,56 @@ func add(mgr manager.Manager, r reconcile.Reconciler) error {
 	if err != nil {
 		return errors.Wrap(err, "could not create watch on WindowsMachineConfig objects")
 	}
+
+	windowsOSLabel := "node.openshift.io/os_id"
+	predicateFilter := predicate.Funcs{
+		CreateFunc: func(e event.CreateEvent) bool {
+			labels := e.Meta.GetLabels()
+			if _, ok := labels[windowsOSLabel]; ok {
+				return true
+			}
+			return false
+		},
+		UpdateFunc: func(e event.UpdateEvent) bool {
+			labels := e.MetaNew.GetLabels()
+			if e.MetaOld == nil {
+				log.Error(nil, "Update event has no old metadata", "event", e)
+				return false
+			}
+			if e.ObjectOld == nil {
+				log.Error(nil, "Update event has no old runtime object to update", "event", e)
+				return false
+			}
+			if e.ObjectNew == nil {
+				log.Error(nil, "Update event has no new runtime object for update", "event", e)
+				return false
+			}
+			if e.MetaNew == nil {
+				log.Error(nil, "Update event has no new metadata", "event", e)
+				return false
+			}
+			if _, ok := labels[windowsOSLabel]; ok {
+				return e.MetaNew.GetGeneration() != e.MetaOld.GetGeneration()
+			}
+			return false
+		},
+		GenericFunc: func(e event.GenericEvent) bool {
+			labels := e.Meta.GetLabels()
+			if _, ok := labels[windowsOSLabel]; ok {
+				return true
+			}
+			return false
+		},
+	}
+
+	phaseProvisioned := "Provisioned"
+	err = c.Watch(&source.Kind{Type: &mapiv1.Machine{
+		ObjectMeta: metav1.ObjectMeta{Namespace: "openshift-machine-api"},
+		Status:     mapiv1.MachineStatus{Phase: &phaseProvisioned},
+	}}, &handler.EnqueueRequestForObject{}, predicateFilter)
+	if err != nil {
+		return errors.Wrap(err, "could not create watch on Machine objects")
+	}
 	return nil
 }
 
@@ -167,9 +220,23 @@ func (r *ReconcileWindowsMachineConfig) getCloudProvider(instance *wmcapi.Window
 func (r *ReconcileWindowsMachineConfig) Reconcile(request reconcile.Request) (reconcile.Result, error) {
 	log.Info("reconciling", "namespace", request.Namespace, "name", request.Name)
 
+	phaseProvisioned := "Provisioned"
+	machineInstance := &mapiv1.Machine{}
+	err := r.client.Get(context.TODO(), request.NamespacedName, machineInstance)
+	if err != nil {
+		log.Info("unable to get instance2 in namespace", "nmspc", request.NamespacedName, "err", err)
+	}
+
+	instanceStatus := machineInstance.Status
+	log.Info("instance state", "state", instanceStatus)
+	if instanceStatus.Phase != &phaseProvisioned {
+		log.Info("MachineStatus", "phase", instanceStatus.Phase)
+		return reconcile.Result{}, nil
+	}
+
 	// Fetch the WindowsMachineConfig instance
 	instance := &wmcapi.WindowsMachineConfig{}
-	err := r.client.Get(context.TODO(), request.NamespacedName, instance)
+	err = r.client.Get(context.TODO(), request.NamespacedName, instance)
 	if err != nil {
 		if k8sapierrors.IsNotFound(err) {
 			// Request object not found, could have been deleted after reconcile request.

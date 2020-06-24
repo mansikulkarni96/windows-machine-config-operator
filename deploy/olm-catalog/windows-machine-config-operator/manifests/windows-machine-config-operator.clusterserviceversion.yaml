@@ -85,6 +85,18 @@ spec:
           - signers
           verbs:
           - approve
+        - apiGroups:
+          - machine.openshift.io
+          resources:
+          - '*'
+          verbs:
+          - '*'
+        - apiGroups:
+          - wmc.openshift.io
+          resources:
+          - '*'
+          verbs:
+          - '*'
         serviceAccountName: windows-machine-config-operator
       deployments:
       - name: windows-machine-config-operator
@@ -186,12 +198,6 @@ spec:
           - deployments
           verbs:
           - get
-        - apiGroups:
-          - wmc.openshift.io
-          resources:
-          - '*'
-          verbs:
-          - '*'
         - apiGroups:
           - security.openshift.io
           resourceNames:
