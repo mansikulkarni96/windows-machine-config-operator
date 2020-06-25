@@ -50,15 +50,26 @@ We need to set up all the environment variables required in [Testing Locally](#t
 ```shell script
 export CONTAINER_REPO=<registry url where operator image will be hosted>
 ```
+For example:
+```shell script
+export CONTAINER_REPO=quay.io/<username>/wmco
+```
 
 To install the operator on a local cluster, use: 
 ```shell script
-make run-local
+make local-run
 ```
 
 To clean-up the installation, use:
 ```shell script
-make clean-local
+make local-clean
+```
+
+If your operator image build fails due to stale cached container/layer, use
+```shell script
+make local-run-debug
+# this creates the operator image without using existing cache. 
+# This might result in extend build time. 
 ```
 
 ## Bundling the Windows Machine Config Operator

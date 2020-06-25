@@ -5,39 +5,41 @@
 # USAGE
 #    run-local.sh -a run/cleanup
 # OPTIONS
-#    -a     Action     run/cleanup the operator installation
+#    -a=     Action     run/cleanup the operator installation
+#    -d      Debug      builds the operator image without using existing cache
 #?
 
 # container tool to use with operator-sdk
 CONTAINER_TOOL=podman
 
-function stop-exec() {
+function error-exit() {
     echo "Error: $*" >&2
     exit 1
 }
 
 # Options
-while getopts "a:" opt; do
+while getopts ":da:" opt; do
     case "$opt" in
 	a) action="$OPTARG" ;;
-	?) stop-exec "Unknown option"
+	d) debug="--image-build-args=\"--no-cache\"";;
+	?) error-exit "Unknown option"
     esac
 done
 
 if [[ ! "$action" =~ ^run|cleanup$ ]]; then
-    stop-exec "-a Action must be \"run\" or \"cleanup\""
+    error-exit "-a Action must be \"run\" or \"cleanup\""
 fi
 
 if [ -z "$AWS_SHARED_CREDENTIALS_FILE" ]; then
-    stop-exec "env AWS_SHARED_CREDENTIALS_FILE not found"
+    error-exit "env AWS_SHARED_CREDENTIALS_FILE not found"
 fi
 
 if [ -z "$KUBE_SSH_KEY_PATH" ]; then
-    stop-exec "env KUBE_SSH_KEY_PATH not found"
+    error-exit "env KUBE_SSH_KEY_PATH not found"
 fi
 
 if [ -z "$CONTAINER_REPO" ]; then
-    stop-exec "env CONTAINER_REPO not found"
+    error-exit "env CONTAINER_REPO not found"
 fi
 
 WMCO_ROOT=$(dirname "${BASH_SOURCE}")/..
@@ -53,11 +55,22 @@ OSDK=$(get_operator_sdk)
 case "$action" in
     run)
 
+  $OSDK generate csv
+  if [ $? -ne 0 ] ; then
+      error-exit "failed to generate CSV for operator"
+  fi
+
   TAG=$(git symbolic-ref --short HEAD)
   OPERATOR_IMAGE=$CONTAINER_REPO:$TAG
 
-  $OSDK build "$OPERATOR_IMAGE" --image-builder $CONTAINER_TOOL
+  $OSDK build "$OPERATOR_IMAGE" --image-builder $CONTAINER_TOOL $debug
+  if [ $? -ne 0 ] ; then
+      error-exit "failed to build operator image"
+  fi
   $CONTAINER_TOOL push "$OPERATOR_IMAGE"
+  if [ $? -ne 0 ] ; then
+      error-exit "failed to push operator image to remote repository"
+  fi
 
   # Create a temporary directory to hold the edited manifests which will be removed on exit
   MANIFEST_LOC=`mktemp -d`
@@ -67,6 +80,9 @@ case "$action" in
 
   # Verify the operator bundle manifests
   $OSDK bundle validate "$MANIFEST_LOC"/windows-machine-config-operator/
+  if [ $? -ne 0 ] ; then
+      error-exit "operator bundle validation failed"
+  fi
 
   oc apply -f deploy/namespace.yaml
   if ! oc create secret generic cloud-credentials --from-file=credentials=$AWS_SHARED_CREDENTIALS_FILE -n windows-machine-config-operator; then
