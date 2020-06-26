@@ -7,6 +7,7 @@ import (
 	"k8s.io/utils/pointer"
 	"log"
 	"math"
+	"os"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
 	"testing"
@@ -14,6 +15,7 @@ import (
 
 	mapiv1 "github.com/openshift/machine-api-operator/pkg/apis/machine/v1beta1"
 	operator "github.com/openshift/windows-machine-config-operator/pkg/apis/wmc/v1alpha1"
+	clientset "github.com/openshift/windows-machine-config-operator/pkg/client"
 	"github.com/openshift/windows-machine-config-operator/pkg/controller/windowsmachineconfig/nodeconfig"
 	framework "github.com/operator-framework/operator-sdk/pkg/test"
 	"github.com/stretchr/testify/require"
@@ -61,20 +63,31 @@ func createMachineSet(t *testing.T) (string, error) {
 		return "", err
 	}
 
+	oc, err := clientset.GetOpenShift(os.Getenv("KUBECONFIG"))
+	if err != nil {
+		return "", err
+	}
+
+	infraID, err := oc.GetInfrastructureID()
+	if err != nil {
+		return "", err
+	}
+
+	clusterName := infraID
 	providerSpec := &aws.AWSMachineProviderConfig{
 		AMI: aws.AWSResourceReference{
-			ID: pointer.StringPtr("ami-0f5030e848f3f9591"),
+			ID: pointer.StringPtr("ami-0f5030e848f391"),
 		},
 		InstanceType: "m4.large",
 		IAMInstanceProfile: &aws.AWSResourceReference{
-			ID: pointer.StringPtr("profileID"),
+			ID: pointer.StringPtr(clusterName + "-worker-profile"),
 		},
 		CredentialsSecret: &v1.LocalObjectReference{
 			Name: "aws-cloud-credentials",
 		},
 		SecurityGroups: []aws.AWSResourceReference{
 			{
-				ID: pointer.StringPtr("sg"),
+				ID: pointer.StringPtr(clusterName + "-worker-sg"),
 			},
 		},
 		Subnet: aws.AWSResourceReference{
