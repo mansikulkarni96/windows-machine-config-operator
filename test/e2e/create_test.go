@@ -2,11 +2,17 @@ package e2e
 
 import (
 	"context"
+	"encoding/json"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/utils/pointer"
 	"log"
 	"math"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client/config"
 	"testing"
 	"time"
 
+	mapiv1 "github.com/openshift/machine-api-operator/pkg/apis/machine/v1beta1"
 	operator "github.com/openshift/windows-machine-config-operator/pkg/apis/wmc/v1alpha1"
 	"github.com/openshift/windows-machine-config-operator/pkg/controller/windowsmachineconfig/nodeconfig"
 	framework "github.com/operator-framework/operator-sdk/pkg/test"
@@ -15,6 +21,8 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/client-go/kubernetes/scheme"
+	aws "sigs.k8s.io/cluster-api-provider-aws/pkg/apis/awsprovider/v1beta1"
 )
 
 const (
@@ -30,17 +38,104 @@ func creationTestSuite(t *testing.T) {
 	// are the secrets but they are created only after the VMs have been fully configured.
 	// Any node object related tests should be run only after testNodeCreation as that initializes the node objects in
 	// the global context.
-	t.Run("WMC CR validation", testWMCValidation)
-	// the failure behavior test will be skipped if gc.nodes = 0
-	t.Run("failure behavior", testFailureSuite)
-	t.Run("Creation", func(t *testing.T) { testWindowsNodeCreation(t) })
-	t.Run("Status", func(t *testing.T) { testStatusWhenSuccessful(t) })
-	t.Run("ConfigMap validation", func(t *testing.T) { testConfigMapValidation(t) })
-	t.Run("Secrets validation", func(t *testing.T) { testValidateSecrets(t) })
-	t.Run("Network validation", testNetwork)
-	t.Run("Label validation", func(t *testing.T) { testWorkerLabel(t) })
-	t.Run("NodeTaint validation", func(t *testing.T) { testNodeTaint(t) })
+	//t.Run("WMC CR validation", testWMCValidation)
+	//// the failure behavior test will be skipped if gc.nodes = 0
+	//t.Run("failure behavior", testFailureSuite)
+	//t.Run("Creation", func(t *testing.T) { testWindowsNodeCreation(t) })
+	//t.Run("Status", func(t *testing.T) { testStatusWhenSuccessful(t) })
+	//t.Run("ConfigMap validation", func(t *testing.T) { testConfigMapValidation(t) })
+	//t.Run("Secrets validation", func(t *testing.T) { testValidateSecrets(t) })
+	//t.Run("Network validation", testNetwork)
+	//t.Run("Label validation", func(t *testing.T) { testWorkerLabel(t) })
+	//t.Run("NodeTaint validation", func(t *testing.T) { testNodeTaint(t) })
+	t.Run("vmcreate", func(t *testing.T) { createMachineSet(t) })
+
 }
+
+// createMachineSet creates a machine set with required Windows os_id label
+func createMachineSet(t *testing.T) (string, error) {
+	// Create a Machine set and get the condition for it, if it successful or not.
+	// Query the machines associated with the machineset if len(machines) > 1 return machine name if not return error
+	cfg, err := config.GetConfig()
+	if err != nil {
+		return "", err
+	}
+
+	providerSpec := &aws.AWSMachineProviderConfig{
+		AMI: aws.AWSResourceReference{
+			ID: pointer.StringPtr("ami-0f5030e848f3f9591"),
+		},
+		InstanceType: "m4.large",
+		IAMInstanceProfile: &aws.AWSResourceReference{
+			ID: pointer.StringPtr("profileID"),
+		},
+		CredentialsSecret: &v1.LocalObjectReference{
+			Name: "aws-cloud-credentials",
+		},
+		SecurityGroups: []aws.AWSResourceReference{
+			{
+				ID: pointer.StringPtr("sg"),
+			},
+		},
+		Subnet: aws.AWSResourceReference{
+			ID: pointer.StringPtr("subnet"),
+		},
+	}
+
+	rawBytes, err := json.Marshal(providerSpec)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	k8sClient, err := client.New(cfg, client.Options{})
+	mapiv1.AddToScheme(scheme.Scheme)
+	// Set up the test machine
+	machine := &mapiv1.MachineSet{
+		ObjectMeta: metav1.ObjectMeta{
+			GenerateName: "windows-machine-with-label",
+			Namespace:    "openshift-machine-api",
+			Labels: map[string]string{
+				mapiv1.MachineClusterIDLabel: "testcluster",
+			},
+		},
+		Spec: mapiv1.MachineSetSpec{
+			Template: mapiv1.MachineTemplateSpec{Spec: mapiv1.MachineSpec{ProviderSpec: mapiv1.ProviderSpec{
+				Value: &runtime.RawExtension{
+					Raw: rawBytes,
+				},
+			},
+			}}},
+	}
+	err = k8sClient.Create(context.TODO(), machine)
+	t.Fatalf("err is %v ", err)
+	if err != nil {
+		return "", err
+	}
+
+	return "", nil
+}
+
+//
+//func testWindowsVMCreation(t *testing.T) {
+//	test := []struct {
+//	{ case1: Create a Windows VM with label expectEvent: true},
+//		{case2: Create a Windows VM without label},
+//		{case3: Create a Linux VM without label},
+//	}
+//
+//
+//	for _, test := range tests {
+//		machineName, err := createMachineSet(expectEvent)
+//		require.NoError(t, err)
+//		// Get the events from the windows-machine-config-operator namespace
+//		eventList := []v1.EventList
+//		if expectEvent {
+//			for _, event := range eventList {
+//				require.Contains(t,event.message, machineName)
+//			}
+//		}
+//	}
+//}
 
 // testWindowsNodeCreation tests the Windows node creation in the cluster
 func testWindowsNodeCreation(t *testing.T) {

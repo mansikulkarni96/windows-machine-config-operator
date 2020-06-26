@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	mapiv1 "github.com/openshift/machine-api-operator/pkg/apis/machine/v1beta1"
+	v1 "k8s.io/api/core/v1"
 	"sigs.k8s.io/controller-runtime/pkg/event"
 
 	"github.com/openshift/windows-machine-config-bootstrapper/tools/windows-node-installer/pkg/cloudprovider"
@@ -18,6 +19,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/tools/record"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
@@ -81,6 +83,7 @@ func newReconciler(mgr manager.Manager, clusterServiceCIDR string) (reconcile.Re
 			tracker:            vmTracker,
 			windowsVMs:         windowsVMs,
 			clusterServiceCIDR: clusterServiceCIDR,
+			recorder:           mgr.GetEventRecorderFor("wmc-controller"),
 		},
 		nil
 }
@@ -114,6 +117,9 @@ func add(mgr manager.Manager, r reconcile.Reconciler) error {
 		},
 		UpdateFunc: func(e event.UpdateEvent) bool {
 			labels := e.MetaNew.GetLabels()
+			if _, ok := labels[windowsOSLabel]; ok {
+				return true
+			}
 			if e.MetaOld == nil {
 				log.Error(nil, "Update event has no old metadata", "event", e)
 				return false
@@ -129,9 +135,6 @@ func add(mgr manager.Manager, r reconcile.Reconciler) error {
 			if e.MetaNew == nil {
 				log.Error(nil, "Update event has no new metadata", "event", e)
 				return false
-			}
-			if _, ok := labels[windowsOSLabel]; ok {
-				return e.MetaNew.GetGeneration() != e.MetaOld.GetGeneration()
 			}
 			return false
 		},
@@ -177,6 +180,8 @@ type ReconcileWindowsMachineConfig struct {
 	statusMgr *StatusManager
 	// clusterServiceCIDR holds the cluster network service CIDR
 	clusterServiceCIDR string
+	// recorder to generate events
+	recorder record.EventRecorder
 }
 
 // getCloudProvider gathers the cloud provider information and sets the cloudProvider struct field
@@ -219,20 +224,22 @@ func (r *ReconcileWindowsMachineConfig) getCloudProvider(instance *wmcapi.Window
 // Result.Requeue is true, otherwise upon completion it will remove the work from the queue.
 func (r *ReconcileWindowsMachineConfig) Reconcile(request reconcile.Request) (reconcile.Result, error) {
 	log.Info("reconciling", "namespace", request.Namespace, "name", request.Name)
-
 	phaseProvisioned := "Provisioned"
 	machineInstance := &mapiv1.Machine{}
 	err := r.client.Get(context.TODO(), request.NamespacedName, machineInstance)
 	if err != nil {
 		log.Info("unable to get instance2 in namespace", "nmspc", request.NamespacedName, "err", err)
 	}
-
 	instanceStatus := machineInstance.Status
-	log.Info("instance state", "state", instanceStatus)
-	if instanceStatus.Phase != &phaseProvisioned {
-		log.Info("MachineStatus", "phase", instanceStatus.Phase)
+	if instanceStatus.Phase == nil {
 		return reconcile.Result{}, nil
 	}
+	var instancePhase = *instanceStatus.Phase
+	if instancePhase != phaseProvisioned {
+		return reconcile.Result{}, nil
+	}
+	r.recorder.Eventf(machineInstance, v1.EventTypeNormal, "Windows Machine Provision",
+		"Machine %s Provisioned Successfully", machineInstance.Name)
 
 	// Fetch the WindowsMachineConfig instance
 	instance := &wmcapi.WindowsMachineConfig{}
