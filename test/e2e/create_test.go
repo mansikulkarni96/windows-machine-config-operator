@@ -76,7 +76,7 @@ func createMachineSet(t *testing.T) (string, error) {
 	clusterName := infraID
 	providerSpec := &aws.AWSMachineProviderConfig{
 		AMI: aws.AWSResourceReference{
-			ID: pointer.StringPtr("ami-0f5030e848f391"),
+			ID: pointer.StringPtr("ami-0f5030e848f3f9591"),
 		},
 		InstanceType: "m4.large",
 		IAMInstanceProfile: &aws.AWSResourceReference{
@@ -91,7 +91,7 @@ func createMachineSet(t *testing.T) (string, error) {
 			},
 		},
 		Subnet: aws.AWSResourceReference{
-			ID: pointer.StringPtr("subnet"),
+			ID: pointer.StringPtr("pmahajan-aws-lp477-rck7t-private-us-east-2c"),
 		},
 	}
 
@@ -108,7 +108,7 @@ func createMachineSet(t *testing.T) (string, error) {
 			GenerateName: "windows-machine-with-label",
 			Namespace:    "openshift-machine-api",
 			Labels: map[string]string{
-				mapiv1.MachineClusterIDLabel: "testcluster",
+				mapiv1.MachineClusterIDLabel: clusterName,
 			},
 		},
 		Spec: mapiv1.MachineSetSpec{

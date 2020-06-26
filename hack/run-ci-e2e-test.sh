@@ -71,24 +71,24 @@ KEY_PAIR_NAME=${KEY_PAIR_NAME:-"libra"}
 # The stable namespace is used as it will use the last promoted version when the test is run in an repository other than this one.
 # When running in this repository the image built in the pipeline will be used instead.
 # https://steps.svc.ci.openshift.org/help/ci-operator#release
-OPERATOR_IMAGE=${OPERATOR_IMAGE:-${IMAGE_FORMAT//\/stable:\$\{component\}//stable:windows-machine-config-operator-test}}
-
-# Create a temporary directory to hold the edited manifests which will be removed on exit
-MANIFEST_LOC=`mktemp -d`
-trap "rm -r $MANIFEST_LOC" EXIT
-cp -r deploy/olm-catalog/windows-machine-config-operator/ $MANIFEST_LOC
-sed -i "s|REPLACE_IMAGE|$OPERATOR_IMAGE|g" $MANIFEST_LOC/windows-machine-config-operator/manifests/windows-machine-config-operator.clusterserviceversion.yaml
-
-# Verify the operator bundle manifests
-$OSDK bundle validate "$MANIFEST_LOC"/windows-machine-config-operator/
-
-cd $WMCO_ROOT
-oc create -f deploy/namespace.yaml
-oc create secret generic cloud-credentials --from-file=credentials=$AWS_SHARED_CREDENTIALS_FILE -n windows-machine-config-operator
-oc create secret generic cloud-private-key --from-file=private-key.pem=$KUBE_SSH_KEY_PATH -n windows-machine-config-operator
-
-# Run the operator in the windows-machine-config-operator namespace
-OSDK_WMCO_management run $OSDK $MANIFEST_LOC
+#OPERATOR_IMAGE=${OPERATOR_IMAGE:-${IMAGE_FORMAT//\/stable:\$\{component\}//stable:windows-machine-config-operator-test}}
+#
+## Create a temporary directory to hold the edited manifests which will be removed on exit
+#MANIFEST_LOC=`mktemp -d`
+#trap "rm -r $MANIFEST_LOC" EXIT
+#cp -r deploy/olm-catalog/windows-machine-config-operator/ $MANIFEST_LOC
+#sed -i "s|REPLACE_IMAGE|$OPERATOR_IMAGE|g" $MANIFEST_LOC/windows-machine-config-operator/manifests/windows-machine-config-operator.clusterserviceversion.yaml
+#
+## Verify the operator bundle manifests
+#$OSDK bundle validate "$MANIFEST_LOC"/windows-machine-config-operator/
+#
+#cd $WMCO_ROOT
+#oc create -f deploy/namespace.yaml
+#oc create secret generic cloud-credentials --from-file=credentials=$AWS_SHARED_CREDENTIALS_FILE -n windows-machine-config-operator
+#oc create secret generic cloud-private-key --from-file=private-key.pem=$KUBE_SSH_KEY_PATH -n windows-machine-config-operator
+#
+## Run the operator in the windows-machine-config-operator namespace
+#OSDK_WMCO_management run $OSDK $MANIFEST_LOC
 
 # The bool flags in golang does not respect key value pattern. They follow -flag=x pattern.
 # -flag x is allowed for non-boolean flags only(https://golang.org/pkg/flag/)
