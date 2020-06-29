@@ -3,9 +3,7 @@ package windowsmachineconfig
 import (
 	"context"
 	"fmt"
-
 	mapiv1 "github.com/openshift/machine-api-operator/pkg/apis/machine/v1beta1"
-	v1 "k8s.io/api/core/v1"
 	"sigs.k8s.io/controller-runtime/pkg/event"
 
 	"github.com/openshift/windows-machine-config-bootstrapper/tools/windows-node-installer/pkg/cloudprovider"
@@ -117,24 +115,12 @@ func add(mgr manager.Manager, r reconcile.Reconciler) error {
 		},
 		UpdateFunc: func(e event.UpdateEvent) bool {
 			labels := e.MetaNew.GetLabels()
+			if e.MetaNew.GetResourceVersion() == e.MetaOld.GetResourceVersion() {
+				log.Info("Same Resource Versions", e.MetaNew.GetResourceVersion(), e.MetaOld.GetResourceVersion())
+				return false
+			}
 			if _, ok := labels[windowsOSLabel]; ok {
 				return true
-			}
-			if e.MetaOld == nil {
-				log.Error(nil, "Update event has no old metadata", "event", e)
-				return false
-			}
-			if e.ObjectOld == nil {
-				log.Error(nil, "Update event has no old runtime object to update", "event", e)
-				return false
-			}
-			if e.ObjectNew == nil {
-				log.Error(nil, "Update event has no new runtime object for update", "event", e)
-				return false
-			}
-			if e.MetaNew == nil {
-				log.Error(nil, "Update event has no new metadata", "event", e)
-				return false
 			}
 			return false
 		},
@@ -147,14 +133,20 @@ func add(mgr manager.Manager, r reconcile.Reconciler) error {
 		},
 	}
 
-	phaseProvisioned := "Provisioned"
+	//err = c.Watch(&source.Kind{Type: &mapiv1.MachineSet{
+	//	ObjectMeta: metav1.ObjectMeta{Namespace: "openshift-machine-api"},
+	//}}, &handler.EnqueueRequestForObject{}, predicateFilter)
+	//if err != nil {
+	//	return errors.Wrap(err, "could not create watch on MachineSet objects")
+	//}
+
 	err = c.Watch(&source.Kind{Type: &mapiv1.Machine{
 		ObjectMeta: metav1.ObjectMeta{Namespace: "openshift-machine-api"},
-		Status:     mapiv1.MachineStatus{Phase: &phaseProvisioned},
 	}}, &handler.EnqueueRequestForObject{}, predicateFilter)
 	if err != nil {
 		return errors.Wrap(err, "could not create watch on Machine objects")
 	}
+
 	return nil
 }
 
@@ -224,22 +216,36 @@ func (r *ReconcileWindowsMachineConfig) getCloudProvider(instance *wmcapi.Window
 // Result.Requeue is true, otherwise upon completion it will remove the work from the queue.
 func (r *ReconcileWindowsMachineConfig) Reconcile(request reconcile.Request) (reconcile.Result, error) {
 	log.Info("reconciling", "namespace", request.Namespace, "name", request.Name)
-	phaseProvisioned := "Provisioned"
-	machineInstance := &mapiv1.Machine{}
-	err := r.client.Get(context.TODO(), request.NamespacedName, machineInstance)
+	windowsOSLabel := "node.openshift.io/os_id"
+	allMachines := &mapiv1.MachineList{}
+
+	err := r.client.List(context.TODO(), allMachines, client.InNamespace(request.Namespace), client.HasLabels{windowsOSLabel})
 	if err != nil {
-		log.Info("unable to get instance2 in namespace", "nmspc", request.NamespacedName, "err", err)
+		return reconcile.Result{}, fmt.Errorf("failed to list machines: %v", err)
 	}
-	instanceStatus := machineInstance.Status
-	if instanceStatus.Phase == nil {
-		return reconcile.Result{}, nil
+
+	provisionedMachines := []mapiv1.Machine{}
+
+	phaseProvisioned := "Provisioned"
+
+	for machine := range allMachines.Items {
+		instanceStatus := allMachines.Items[machine].Status
+		if instanceStatus.Phase == nil {
+			continue
+		}
+		instancePhase := *instanceStatus.Phase
+		if instancePhase == phaseProvisioned {
+			provisionedMachines = append(provisionedMachines, allMachines.Items[machine])
+		}
+
 	}
-	var instancePhase = *instanceStatus.Phase
-	if instancePhase != phaseProvisioned {
-		return reconcile.Result{}, nil
+
+	for machine := range provisionedMachines {
+		instance := provisionedMachines[machine]
+		// log.Info("Provisioned Loop", instance.Name, instance.Status.Phase)
+		r.recorder.Eventf(&instance, corev1.EventTypeNormal, "Windows Machine",
+			"Machine %s Provisioned Successfully", instance.Name)
 	}
-	r.recorder.Eventf(machineInstance, v1.EventTypeNormal, "Windows Machine Provision",
-		"Machine %s Provisioned Successfully", machineInstance.Name)
 
 	// Fetch the WindowsMachineConfig instance
 	instance := &wmcapi.WindowsMachineConfig{}
