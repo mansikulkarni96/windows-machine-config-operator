@@ -1,0 +1,6 @@
+---
+project:
+  updaters:
+    - type: usrc
+  build-source-generators:
+    - type: distgit-maker
