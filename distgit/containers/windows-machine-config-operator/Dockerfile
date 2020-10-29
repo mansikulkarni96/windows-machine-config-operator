@@ -1,42 +1,34 @@
 # dist-git Dockerfile
 # We cannot use a golang image as building the kubelet requires rsync and that is not present plus there is no easy way
 # to install it in the golang image.
-FROM registry.redhat.io/ubi8/ubi-minimal:latest as build
+FROM openshift/golang-builder:rhel_8_1.15 as build
 LABEL stage=build
-RUN microdnf -y update
-RUN microdnf -y install rsync make go git tar findutils diffutils
+RUN yum -y update
+RUN yum -y install rsync make go git tar findutils diffutils
 
 ## Build WMCO
-WORKDIR /build/wmco
-COPY . .
+COPY $REMOTE_SOURCE $REMOTE_SOURCE_DIR
+WORKDIR $REMOTE_SOURCE_DIR/app
 RUN make build
 
 # Build WMCB
-COPY wmcb-4.6-ad544f0-dirty.tgz /build/wmcb.tgz
-WORKDIR /build/wmcb
-RUN tar -zxf /build/wmcb.tgz
+WORKDIR $REMOTE_SOURCE_DIR/app/windows-machine-config-bootstrapper/
 RUN make build
 
 # Build hybrid-overlay
-COPY ovn-kubernetes-4.6-df7b893d.tgz /build/ovn-kubernetes.tgz
-WORKDIR /build/ovn-kubernetes/
-RUN tar -zxf /build/ovn-kubernetes.tgz
-WORKDIR /build/ovn-kubernetes/go-controller/
+WORKDIR $REMOTE_SOURCE_DIR/app/ovn-kubernetes/go-controller/
 RUN make windows
 
+# Build Kubernetes node binaries
+WORKDIR $REMOTE_SOURCE_DIR/app/kubernetes/
+ENV KUBE_BUILD_PLATFORMS windows/amd64
+RUN make WHAT=cmd/kubelet
+RUN make WHAT=cmd/kube-proxy
+
 # Build CNI plugins
-COPY containernetworking-plugins-4.6-03ee7f3.tgz /build/containernetworking-plugins.tgz
-WORKDIR /build/containernetworking-plugins
-RUN tar -zxf /build/containernetworking-plugins.tgz
+WORKDIR $REMOTE_SOURCE_DIR/app/containernetworking-plugins/
 ENV CGO_ENABLED=0
 RUN ./build_windows.sh
-
-# Build kubelet and kube-proxy
-COPY kubernetes-4.6-5241b27b8ac.tgz /build/kubernetes.tgz
-WORKDIR /build/kubernetes
-RUN tar -zxf /build/kubernetes.tgz
-RUN KUBE_BUILD_PLATFORMS=windows/amd64 make WHAT=cmd/kubelet
-RUN KUBE_BUILD_PLATFORMS=windows/amd64 make WHAT=cmd/kube-proxy
 
 # Build the operator image with following payload structure
 # /payload/
@@ -77,35 +69,36 @@ RUN microdnf -y install tar
 
 # Copy wmcb.exe
 WORKDIR /payload/
-COPY --from=build /build/wmcb/wmcb.exe .
+COPY --from=build $REMOTE_SOURCE_DIR/app/windows-machine-config-bootstrapper/wmcb.exe .
 
 # Copy hybrid-overlay-node.exe
-COPY --from=build /build/ovn-kubernetes/go-controller/_output/go/bin/windows/hybrid-overlay-node.exe .
+COPY --from=build $REMOTE_SOURCE_DIR/app/ovn-kubernetes/go-controller/_output/go/bin/windows/hybrid-overlay-node.exe .
 
 # Copy kubelet.exe and kube-proxy.exe
+RUN mkdir /payload/kube-node/
 WORKDIR /payload/kube-node/
-COPY --from=build /build/kubernetes/_output/local/bin/windows/amd64/kubelet.exe .
-COPY --from=build /build/kubernetes/_output/local/bin/windows/amd64/kube-proxy.exe .
+COPY --from=build $REMOTE_SOURCE_DIR/app/kubernetes/_output/local/bin/windows/amd64/kubelet.exe .
+COPY --from=build $REMOTE_SOURCE_DIR/app/kubernetes/_output/local/bin/windows/amd64/kube-proxy.exe .
 
 # Copy CNI plugin binaries and CNI config template cni-conf-template.json
 RUN mkdir /payload/cni/
 WORKDIR /payload/cni/
-COPY --from=build /build/containernetworking-plugins/bin/flannel.exe .
-COPY --from=build /build/containernetworking-plugins/bin/host-local.exe .
-COPY --from=build /build/containernetworking-plugins/bin/win-bridge.exe .
-COPY --from=build /build/containernetworking-plugins/bin/win-overlay.exe .
-COPY --from=build /build/wmco/pkg/internal/cni-conf-template.json .
+COPY --from=build $REMOTE_SOURCE_DIR/app/containernetworking-plugins/bin/flannel.exe .
+COPY --from=build $REMOTE_SOURCE_DIR/app/containernetworking-plugins/bin/host-local.exe .
+COPY --from=build $REMOTE_SOURCE_DIR/app/containernetworking-plugins/bin/win-bridge.exe .
+COPY --from=build $REMOTE_SOURCE_DIR/app/containernetworking-plugins/bin/win-overlay.exe .
+COPY --from=build $REMOTE_SOURCE_DIR/app/pkg/internal/cni-conf-template.json .
 
 # Copy required powershell scripts
 RUN mkdir /payload/powershell/
 WORKDIR /payload/powershell/
-COPY --from=build /build/wmco/pkg/internal/wget-ignore-cert.ps1 .
-COPY --from=build /build/wmco/pkg/internal/hns.psm1 .
+COPY --from=build $REMOTE_SOURCE_DIR/app/pkg/internal/wget-ignore-cert.ps1 .
+COPY --from=build $REMOTE_SOURCE_DIR/app/pkg/internal/hns.psm1 .
 
 # Copy manifests, metadata and bundle.Dockerfile. They are required to build the bundle image.
-COPY --from=build /build/wmco/deploy/olm-catalog/windows-machine-config-operator/manifests /manifests
-COPY --from=build /build/wmco/deploy/olm-catalog/windows-machine-config-operator/metadata /metadata
-COPY --from=build /build/wmco/bundle.Dockerfile /bundle.Dockerfile
+COPY --from=build $REMOTE_SOURCE_DIR/app/deploy/olm-catalog/windows-machine-config-operator/manifests /manifests
+COPY --from=build $REMOTE_SOURCE_DIR/app/deploy/olm-catalog/windows-machine-config-operator/metadata /metadata
+COPY --from=build $REMOTE_SOURCE_DIR/app/bundle.Dockerfile /bundle.Dockerfile
 
 WORKDIR /
 
@@ -114,9 +107,9 @@ ENV OPERATOR=/usr/local/bin/windows-machine-config-operator \
     USER_NAME=windows-machine-config-operator
 
 # install operator binary
-COPY --from=build /build/wmco/build/_output/bin/windows-machine-config-operator ${OPERATOR}
+COPY --from=build $REMOTE_SOURCE_DIR/app/build/_output/bin/windows-machine-config-operator ${OPERATOR}
 
-COPY --from=build /build/wmco/build/bin /usr/local/bin
+COPY --from=build $REMOTE_SOURCE_DIR/app/build/bin /usr/local/bin
 RUN  /usr/local/bin/user_setup
 
 ENTRYPOINT ["/usr/local/bin/entrypoint"]

@@ -2,5 +2,11 @@
 image_build_method: imagebuilder
 compose:
   pulp_repos: true
+
 platforms:
   only: x86_64
+
+remote_source:
+        repo: https://github.com/openshift/windows-machine-config-operator.git
+        ref: 550dba2d447a5a662c93b47898f660e4145b5bfc
+        pkg_managers: [gomod, git-submodule]

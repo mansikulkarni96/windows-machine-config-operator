@@ -1,5 +1,5 @@
 git:
-- url: git@github.com:openshift/windows-machine-config-operator.git
+- url: https://github.com/openshift/windows-machine-config-operator.git
   branch: release-4.6
-  commit: 88f48f94af07ef7fc80ddc747a1ed21dc15629ce
+  commit: 550dba2d447a5a662c93b47898f660e4145b5bfc
   dest_formats: {}
