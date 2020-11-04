@@ -8,5 +8,5 @@ platforms:
 
 remote_source:
         repo: https://github.com/openshift/windows-machine-config-operator.git
-        ref: 550dba2d447a5a662c93b47898f660e4145b5bfc
+        ref: ${CI_UPSTREAM_COMMIT}
         pkg_managers: [gomod, git-submodule]
