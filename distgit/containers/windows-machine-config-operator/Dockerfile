@@ -3,7 +3,6 @@
 # to install it in the golang image.
 FROM openshift/golang-builder:rhel_8_1.15 as build
 LABEL stage=build
-RUN yum -y update
 RUN yum -y install rsync make go git tar findutils diffutils
 
 ## Build WMCO
