@@ -1,4 +1,6 @@
 git:
-- branch: release-4.6
+- url: https://github.com/openshift/windows-machine-config-operator.git
+  branch: release-4.6
   commit: 941d20d52369cd60b738b10a4b525e807ec46c15
-  url: https://github.com/openshift/windows-machine-config-operator.git
+  automerge: 'yes'
+  dest_formats: {}
