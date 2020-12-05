@@ -10,3 +10,4 @@ remote_source:
         repo: https://github.com/openshift/windows-machine-config-operator.git
         ref: ${CI_UPSTREAM_COMMIT}
         pkg_managers: [gomod, git-submodule]
+        flags: [include-git-dir]
