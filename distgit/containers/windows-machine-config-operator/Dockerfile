@@ -5,25 +5,9 @@ FROM openshift/golang-builder:rhel_8_1.15 as build
 LABEL stage=build
 WORKDIR $REMOTE_SOURCE_DIR/build/
 
-# Build WMCO
 WORKDIR $REMOTE_SOURCE_DIR/build/windows-machine-config-operator
 # Copy .git metadata so that we can generate the version for the WMCO binary
 COPY $REMOTE_SOURCE/app/.git .git
-# Copy files and directories needed to build the WMCO binary
-COPY $REMOTE_SOURCE/app/build build
-COPY $REMOTE_SOURCE/app/cmd cmd
-COPY $REMOTE_SOURCE/app/deploy deploy
-COPY $REMOTE_SOURCE/app/hack hack
-COPY $REMOTE_SOURCE/app/pkg pkg
-COPY $REMOTE_SOURCE/app/test test
-COPY $REMOTE_SOURCE/app/vendor vendor
-COPY $REMOTE_SOURCE/app/version version
-COPY $REMOTE_SOURCE/app/go.mod go.mod
-COPY $REMOTE_SOURCE/app/go.sum go.sum
-COPY $REMOTE_SOURCE/app/Makefile Makefile
-COPY $REMOTE_SOURCE/app/tools.go tools.go
-COPY $REMOTE_SOURCE/app/bundle.Dockerfile bundle.Dockerfile
-RUN make build
 
 # Build WMCB
 WORKDIR $REMOTE_SOURCE_DIR/build/windows-machine-config-operator/windows-machine-config-bootstrapper/
@@ -48,6 +32,25 @@ WORKDIR $REMOTE_SOURCE_DIR/build/windows-machine-config-operator/containernetwor
 COPY $REMOTE_SOURCE/app/containernetworking-plugins/ .
 ENV CGO_ENABLED=0
 RUN ./build_windows.sh
+
+# Build WMCO
+WORKDIR $REMOTE_SOURCE_DIR/build/windows-machine-config-operator
+# Copy files and directories needed to build the WMCO binary
+COPY $REMOTE_SOURCE/app/build build
+COPY $REMOTE_SOURCE/app/cmd cmd
+COPY $REMOTE_SOURCE/app/deploy deploy
+COPY $REMOTE_SOURCE/app/hack hack
+COPY $REMOTE_SOURCE/app/pkg pkg
+COPY $REMOTE_SOURCE/app/test test
+COPY $REMOTE_SOURCE/app/vendor vendor
+COPY $REMOTE_SOURCE/app/version version
+COPY $REMOTE_SOURCE/app/go.mod go.mod
+COPY $REMOTE_SOURCE/app/go.sum go.sum
+COPY $REMOTE_SOURCE/app/Makefile Makefile
+COPY $REMOTE_SOURCE/app/tools.go tools.go
+COPY $REMOTE_SOURCE/app/bundle.Dockerfile bundle.Dockerfile
+COPY $REMOTE_SOURCE/app/.gitignore .gitignore
+RUN make build
 
 # Build the operator image with following payload structure
 # /payload/
