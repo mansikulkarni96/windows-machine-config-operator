@@ -82,7 +82,7 @@ LABEL com.redhat.component="windows-machine-config-operator-container" \
     io.openshift.maintainer.product="OpenShift Container Platform" \
     io.openshift.maintainer.component="Windows Containers" \
     com.redhat.delivery.appregistry="false" \
-    version="1.0.2" \
+    version="2.0.0" \
     maintainer="team-winc@redhat.com"
 
 # Install tar so that we do "oc cp" to extract the manifests in the CPaaS pipeline
