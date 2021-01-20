@@ -20,6 +20,17 @@ COPY $REMOTE_SOURCE/app/ovn-kubernetes/ .
 WORKDIR $REMOTE_SOURCE_DIR/build/windows-machine-config-operator/ovn-kubernetes/go-controller/
 RUN make windows
 
+# Build promu utility tool, needed to build the windows_exporter.exe metrics binary
+WORKDIR $REMOTE_SOURCE_DIR/build/windows-machine-config-operator/promu/
+COPY $REMOTE_SOURCE/app/promu/ .
+# Explicitly set the $GOBIN path for promu installation
+RUN GOBIN=$REMOTE_SOURCE_DIR/build/windows-machine-config-operator/windows_exporter/ go install .
+
+# Build windows_exporter
+WORKDIR $REMOTE_SOURCE_DIR/build/windows-machine-config-operator/windows_exporter/
+COPY $REMOTE_SOURCE/app/windows_exporter/ .
+RUN GOOS=windows ./promu build -v
+
 # Build Kubernetes node binaries
 WORKDIR $REMOTE_SOURCE_DIR/build/windows-machine-config-operator/kubernetes/
 COPY $REMOTE_SOURCE/app/kubernetes/ .
@@ -67,6 +78,7 @@ RUN make build
 #├── powershell
 #│   └── wget-ignore-cert.ps1
 #│   └── hns.psm1
+#├── windows_exporter.exe
 #└── wmcb.exe
 
 FROM registry.redhat.io/ubi8/ubi-minimal:latest
@@ -94,6 +106,9 @@ COPY --from=build $REMOTE_SOURCE_DIR/build/windows-machine-config-operator/windo
 
 # Copy hybrid-overlay-node.exe
 COPY --from=build $REMOTE_SOURCE_DIR/build/windows-machine-config-operator/ovn-kubernetes/go-controller/_output/go/bin/windows/hybrid-overlay-node.exe .
+
+# Copy windows_exporter.exe
+COPY --from=build $REMOTE_SOURCE_DIR/build/windows-machine-config-operator/windows_exporter/windows_exporter.exe .
 
 # Copy kubelet.exe and kube-proxy.exe
 WORKDIR /payload/kube-node/
