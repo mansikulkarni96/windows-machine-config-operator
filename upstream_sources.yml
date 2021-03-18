@@ -1,5 +1,5 @@
 git:
 - automerge: 'yes'
   branch: release-4.7
-  commit: 3cab6a06628e5d5f71c69aabd4d1de4bbe7a0a37
+  commit: 6dd59dc9da1c7cc90a8cd312fbc66289452af570
   url: https://github.com/openshift/windows-machine-config-operator.git
