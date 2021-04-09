@@ -48,7 +48,7 @@ RUN ./build_windows.sh
 WORKDIR $REMOTE_SOURCE_DIR/build/windows-machine-config-operator
 # Copy files and directories needed to build the WMCO binary
 COPY $REMOTE_SOURCE/app/build build
-COPY $REMOTE_SOURCE/app/cmd cmd
+COPY $REMOTE_SOURCE/app/main.go main.go
 COPY $REMOTE_SOURCE/app/controllers controllers
 COPY $REMOTE_SOURCE/app/apis apis
 COPY $REMOTE_SOURCE/app/deploy deploy
