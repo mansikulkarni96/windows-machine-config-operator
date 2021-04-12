@@ -1,7 +1,7 @@
 # dist-git Dockerfile
 # We cannot use a golang image as building the kubelet requires rsync and that is not present plus there is no easy way
 # to install it in the golang image.
-FROM openshift/golang-builder:rhel_8_1.15 as build
+FROM openshift/golang-builder:rhel_8_1.16 as build
 LABEL stage=build
 WORKDIR $REMOTE_SOURCE_DIR/build/
 
