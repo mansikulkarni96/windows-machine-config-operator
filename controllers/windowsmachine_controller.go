@@ -3,12 +3,16 @@ package controllers
 import (
 	"context"
 	"fmt"
+	operatorv1 "github.com/openshift/api/operator/v1"
+	apiv1 "github.com/operator-framework/api/pkg/operators/v1"
 	"net"
+	"os"
 	"strings"
 
 	"github.com/go-logr/logr"
 	oconfig "github.com/openshift/api/config/v1"
 	mapi "github.com/openshift/machine-api-operator/pkg/apis/machine/v1beta1"
+	"github.com/operator-framework/operator-lib/conditions"
 	"github.com/pkg/errors"
 	"golang.org/x/crypto/ssh"
 	core "k8s.io/api/core/v1"
@@ -49,7 +53,8 @@ const (
 	// TODO: https://issues.redhat.com/browse/WINC-524
 	maxUnhealthyCount = 1
 	// MachineOSLabel is the label used to identify the Windows Machines.
-	MachineOSLabel = "machine.openshift.io/os-id"
+	MachineOSLabel                     = "machine.openshift.io/os-id"
+	upgradeable    apiv1.ConditionType = "upgradeable"
 )
 
 // WindowsMachineReconciler is used to create a controller which manages Windows Machine objects
@@ -550,4 +555,33 @@ func getInternalIPAddress(addresses []core.NodeAddress) (string, error) {
 		}
 	}
 	return "", errors.New("no internal IP address associated")
+}
+
+func (r *WindowsMachineReconciler) setOperatorUpgradeableCondition() operatorv1.OperatorCondition {
+	cond := operatorv1.OperatorCondition{
+		Type:    operatorv1.OperatorStatusTypeUpgradeable,
+		Status:  operatorv1.ConditionFalse,
+		Reason:  "upgrade",
+		Message: "The operator is performing an upgrade of its nodes",
+	}
+
+	return cond
+}
+
+func (r *WindowsMachineReconciler) setStatusCondition(newCondition operatorv1.OperatorCondition) error {
+	r.log.Info("env var conditions", "OPERATOR_CONDITION_NAME", os.Getenv("OPERATOR_CONDITION_NAME"))
+	condition, err := conditions.NewCondition(r.client, upgradeable)
+	if err != nil {
+		return err
+	}
+	// set internally does a get
+	//con, err := condition.Get(context.TODO())
+	//if err != nil {
+	//	return err
+	//}
+	err = condition.Set(context.TODO(), meta.ConditionFalse, conditions.WithReason("upgrade"), conditions.WithMessage("The operator is upgrading its nodes"))
+	if err != nil {
+		return err
+	}
+	return nil
 }

@@ -38,9 +38,10 @@ replace (
 require (
 	github.com/aws/aws-sdk-go v1.27.0
 	github.com/go-logr/logr v0.4.0
-	github.com/openshift/api v0.0.0-20201214114959-164a2fb63b5f
-	github.com/openshift/client-go v0.0.0-20201214125552-e615e336eb49
+	github.com/openshift/api v0.0.0-20210331193751-3acddb19d360
+	github.com/openshift/client-go v0.0.0-20210331195552-cf6c2669e01f
 	github.com/openshift/machine-api-operator v0.2.1-0.20200722104429-f4f9b84df9b7
+	github.com/operator-framework/api v0.5.2
 	github.com/operator-framework/operator-lib v0.4.0
 	github.com/pkg/errors v0.9.1
 	github.com/pkg/sftp v1.11.0
@@ -50,6 +51,7 @@ require (
 	golang.org/x/crypto v0.0.0-20210220033148-5ea612d1eb83
 	golang.org/x/mod v0.3.1-0.20200828183125-ce943fd02449
 	k8s.io/api v0.21.0-rc.0
+	k8s.io/apiextensions-apiserver v0.21.0-rc.0 // indirect
 	k8s.io/apimachinery v0.21.0-rc.0
 	k8s.io/client-go v0.21.0-rc.0
 	k8s.io/kubectl v0.21.0-rc.0
