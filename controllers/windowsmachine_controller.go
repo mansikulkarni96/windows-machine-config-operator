@@ -54,7 +54,7 @@ const (
 	maxUnhealthyCount = 1
 	// MachineOSLabel is the label used to identify the Windows Machines.
 	MachineOSLabel                     = "machine.openshift.io/os-id"
-	upgradeable    apiv1.ConditionType = "upgradeable"
+	conditionType    apiv1.ConditionType = "upgradeable"
 )
 
 // WindowsMachineReconciler is used to create a controller which manages Windows Machine objects
@@ -328,6 +328,11 @@ func (r *WindowsMachineReconciler) Reconcile(ctx context.Context, request ctrl.R
 						machine.Name, maxUnhealthyCount)
 					return ctrl.Result{Requeue: true}, nil
 				}
+				// add log.Info and recorder event instead of returning error
+				err = r.createUpgradeableCondition(true)
+				if err != nil {
+					return ctrl.Result{}, errors.Wrapf(err, "unable to set operator condition status")
+				}
 				return ctrl.Result{}, r.deleteMachine(machine)
 			}
 			log.Info("machine has current version", "version", node.Annotations[nodeconfig.VersionAnnotation])
@@ -395,6 +400,11 @@ func (r *WindowsMachineReconciler) Reconcile(ctx context.Context, request ctrl.R
 	// configure Prometheus after a Windows machine is configured as a Node.
 	if err := r.prometheusNodeConfig.Configure(); err != nil {
 		return ctrl.Result{}, errors.Wrap(err, "unable to configure Prometheus")
+	}
+	// add log.Info and recorder event instead of returning error
+	err = r.createUpgradeableCondition(false)
+	if err != nil {
+		return ctrl.Result{}, errors.Wrapf(err, "unable to set operator condition status")
 	}
 	return ctrl.Result{}, nil
 }
@@ -557,31 +567,38 @@ func getInternalIPAddress(addresses []core.NodeAddress) (string, error) {
 	return "", errors.New("no internal IP address associated")
 }
 
-func (r *WindowsMachineReconciler) setOperatorUpgradeableCondition() operatorv1.OperatorCondition {
-	cond := operatorv1.OperatorCondition{
-		Type:    operatorv1.OperatorStatusTypeUpgradeable,
-		Status:  operatorv1.ConditionFalse,
-		Reason:  "upgrade",
-		Message: "The operator is performing an upgrade of its nodes",
+// createUpgradeableCondition creates a new condition of type upgradeable in
+// the operatorCondition CR created by OLM.
+// upgradeable -> false indicates operator cannot be upgraded
+// upgradeable -> true indicates operator is safe to be upgraded.
+func (r *WindowsMachineReconciler) createUpgradeableCondition(upgradeable bool) error {
+	r.log.Info("env var conditions", "OPERATOR_CONDITION_NAME", os.Getenv("OPERATOR_CONDITION_NAME"))
+	condition, err := conditions.NewCondition(r.client, conditionType)
+	if err != nil {
+		return err
 	}
 
-	return cond
+	err = setStatusCondition(condition, upgradeable)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
-func (r *WindowsMachineReconciler) setStatusCondition(newCondition operatorv1.OperatorCondition) error {
-	r.log.Info("env var conditions", "OPERATOR_CONDITION_NAME", os.Getenv("OPERATOR_CONDITION_NAME"))
-	condition, err := conditions.NewCondition(r.client, upgradeable)
-	if err != nil {
-		return err
-	}
-	// set internally does a get
-	//con, err := condition.Get(context.TODO())
-	//if err != nil {
-	//	return err
-	//}
-	err = condition.Set(context.TODO(), meta.ConditionFalse, conditions.WithReason("upgrade"), conditions.WithMessage("The operator is upgrading its nodes"))
-	if err != nil {
-		return err
+// setStatusCondition sets the status field of the operator ugradeable condition created
+// This helps to restrict OLM from upgrading the operator when it is upgrading its nodes.
+func setStatusCondition(condition conditions.Condition , upgradeable bool) error {
+	if upgradeable {
+		err := condition.Set(context.TODO(), meta.ConditionTrue, conditions.WithReason("upgrade complete"), conditions.WithMessage("The operator can be upgraded"))
+		if err != nil {
+			return err
+		}
+	} else {
+		err := condition.Set(context.TODO(), meta.ConditionFalse, conditions.WithReason("upgrade in progress"), conditions.WithMessage("The operator cannot be upgraded, it is performing an upgrade of its nodes"))
+		if err != nil {
+			return err
+		}
 	}
 	return nil
 }
