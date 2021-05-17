@@ -31,11 +31,16 @@ WORKDIR $REMOTE_SOURCE_DIR/build/windows-machine-config-operator/windows_exporte
 COPY $REMOTE_SOURCE/app/windows_exporter/ .
 RUN GOOS=windows ./promu build -v
 
-# Build Kubernetes node binaries
-WORKDIR $REMOTE_SOURCE_DIR/build/windows-machine-config-operator/kubernetes/
-COPY $REMOTE_SOURCE/app/kubernetes/ .
+# Build kubelet
+WORKDIR $REMOTE_SOURCE_DIR/build/windows-machine-config-operator/kubelet/
+COPY $REMOTE_SOURCE/app/kubelet/ .
 ENV KUBE_BUILD_PLATFORMS windows/amd64
 RUN make WHAT=cmd/kubelet
+
+# Build kube-proxy
+WORKDIR $REMOTE_SOURCE_DIR/build/windows-machine-config-operator/kube-proxy/
+COPY $REMOTE_SOURCE/app/kube-proxy/ .
+ENV KUBE_BUILD_PLATFORMS windows/amd64
 RUN make WHAT=cmd/kube-proxy
 
 # Build CNI plugins
@@ -50,8 +55,7 @@ WORKDIR $REMOTE_SOURCE_DIR/build/windows-machine-config-operator
 COPY $REMOTE_SOURCE/app/build build
 COPY $REMOTE_SOURCE/app/main.go main.go
 COPY $REMOTE_SOURCE/app/controllers controllers
-COPY $REMOTE_SOURCE/app/apis apis
-COPY $REMOTE_SOURCE/app/deploy deploy
+COPY $REMOTE_SOURCE/app/bundle bundle
 COPY $REMOTE_SOURCE/app/hack hack
 COPY $REMOTE_SOURCE/app/pkg pkg
 COPY $REMOTE_SOURCE/app/test test
@@ -114,8 +118,8 @@ COPY --from=build $REMOTE_SOURCE_DIR/build/windows-machine-config-operator/windo
 
 # Copy kubelet.exe and kube-proxy.exe
 WORKDIR /payload/kube-node/
-COPY --from=build $REMOTE_SOURCE_DIR/build/windows-machine-config-operator/kubernetes/_output/local/bin/windows/amd64/kubelet.exe .
-COPY --from=build $REMOTE_SOURCE_DIR/build/windows-machine-config-operator/kubernetes/_output/local/bin/windows/amd64/kube-proxy.exe .
+COPY --from=build $REMOTE_SOURCE_DIR/build/windows-machine-config-operator/kubelet/_output/local/bin/windows/amd64/kubelet.exe .
+COPY --from=build $REMOTE_SOURCE_DIR/build/windows-machine-config-operator/kube-proxy/_output/local/bin/windows/amd64/kube-proxy.exe .
 
 # Copy CNI plugin binaries and CNI config template cni-conf-template.json
 WORKDIR /payload/cni/
@@ -131,8 +135,8 @@ COPY --from=build $REMOTE_SOURCE_DIR/build/windows-machine-config-operator/pkg/i
 COPY --from=build $REMOTE_SOURCE_DIR/build/windows-machine-config-operator/pkg/internal/hns.psm1 .
 
 # Copy manifests, metadata and bundle.Dockerfile. They are required to build the bundle image.
-COPY --from=build $REMOTE_SOURCE_DIR/build/windows-machine-config-operator/deploy/olm-catalog/windows-machine-config-operator/manifests /manifests
-COPY --from=build $REMOTE_SOURCE_DIR/build/windows-machine-config-operator/deploy/olm-catalog/windows-machine-config-operator/metadata /metadata
+COPY --from=build $REMOTE_SOURCE_DIR/build/windows-machine-config-operator/bundle/manifests /manifests
+COPY --from=build $REMOTE_SOURCE_DIR/build/windows-machine-config-operator/bundle/metadata /metadata
 COPY --from=build $REMOTE_SOURCE_DIR/build/windows-machine-config-operator/bundle.Dockerfile /bundle.Dockerfile
 
 WORKDIR /
