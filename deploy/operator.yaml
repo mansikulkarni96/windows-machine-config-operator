@@ -20,8 +20,6 @@ spec:
           image: REPLACE_IMAGE
           command:
           - windows-machine-config-operator
-          args:
-          - "--debugLogging"
           imagePullPolicy: IfNotPresent
           env:
             - name: WATCH_NAMESPACE
