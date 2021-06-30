@@ -18,8 +18,6 @@ package controllers
 
 import (
 	"context"
-	"net"
-	"strings"
 
 	"github.com/pkg/errors"
 	core "k8s.io/api/core/v1"
@@ -122,52 +120,12 @@ func (r *ConfigMapReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	return ctrl.Result{}, r.reconcileNodes(ctx, configMap)
 }
 
-// parseHosts gets the lists of hosts specified in the configmap's data
-func (r *ConfigMapReconciler) parseHosts(configMapData map[string]string) ([]*instances.InstanceInfo, error) {
-	hosts := make([]*instances.InstanceInfo, 0)
-	// Get information about the hosts from each entry. The expected key/value format for each entry is:
-	// <address>: username=<username>
-	for address, data := range configMapData {
-		if err := validateAddress(address); err != nil {
-			return nil, errors.Wrapf(err, "invalid address %s", address)
-		}
-		splitData := strings.SplitN(data, "=", 2)
-		if len(splitData) == 0 || splitData[0] != "username" {
-			return hosts, errors.Errorf("data for entry %s has an incorrect format", address)
-		}
-
-		hosts = append(hosts, instances.NewInstanceInfo(address, splitData[1], ""))
-	}
-	return hosts, nil
-}
-
-// validateAddress checks that the given address is either an ipv4 address, or resolves to any ip address
-func validateAddress(address string) error {
-	// first check if address is an IP address
-	if parsedAddr := net.ParseIP(address); parsedAddr != nil {
-		if parsedAddr.To4() != nil {
-			return nil
-		}
-		// if the address parses into an IP but is not ipv4 it must be ipv6
-		return errors.Errorf("ipv6 is not supported")
-	}
-	// Do a check that the DNS provided is valid
-	addressList, err := net.LookupHost(address)
-	if err != nil {
-		return errors.Wrapf(err, "error looking up DNS")
-	}
-	if len(addressList) == 0 {
-		return errors.Errorf("DNS did not resolve to an address")
-	}
-	return nil
-}
-
 // reconcileNodes corrects the discrepancy between the "expected" hosts slice, and the "actual" nodelist
-func (r *ConfigMapReconciler) reconcileNodes(ctx context.Context, instances *core.ConfigMap) error {
-	// Get the list of instances that are expected to be Nodes
-	hosts, err := r.parseHosts(instances.Data)
+func (r *ConfigMapReconciler) reconcileNodes(ctx context.Context, windowsInstances *core.ConfigMap) error {
+	// Get the list of windowsInstances that are expected to be Nodes
+	instances, err := instances.ParseInstances(windowsInstances.Data)
 	if err != nil {
-		return errors.Wrapf(err, "unable to parse hosts from configmap")
+		return errors.Wrapf(err, "unable to parse instances from configmap")
 	}
 
 	nodes := &core.NodeList{}
@@ -178,19 +136,19 @@ func (r *ConfigMapReconciler) reconcileNodes(ctx context.Context, instances *cor
 	// For each host, ensure that it is configured into a node. On error of any host joining, return error and requeue.
 	// It is better to return early like this, instead of trying to configure as many nodes as possible in a single
 	// reconcile call, as it simplifies error collection. The order the map is read from is psuedo-random, so the
-	// configuration effort for configurable hosts will not be blocked by a specific host that has issues with
+	// configuration effort for configurable instances will not be blocked by a specific host that has issues with
 	// configuration.
-	for _, host := range hosts {
+	for _, host := range instances {
 		err := r.ensureInstanceIsConfigured(host, nodes)
 		if err != nil {
-			r.recorder.Eventf(instances, core.EventTypeWarning, "InstanceSetupFailure",
+			r.recorder.Eventf(windowsInstances, core.EventTypeWarning, "InstanceSetupFailure",
 				"unable to join instance with address %s to the cluster", host.Address)
 			return errors.Wrapf(err, "error configuring host with address %s", host.Address)
 		}
 	}
 
-	// Ensure that only instances currently specified by the ConfigMap are joined to the cluster as nodes
-	if err = r.deconfigureInstances(hosts, nodes); err != nil {
+	// Ensure that only windowsInstances currently specified by the ConfigMap are joined to the cluster as nodes
+	if err = r.deconfigureInstances(instances, nodes); err != nil {
 		return errors.Wrap(err, "error removing undesired nodes from cluster")
 	}
 

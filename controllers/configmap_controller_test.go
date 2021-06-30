@@ -9,8 +9,7 @@ import (
 	"github.com/openshift/windows-machine-config-operator/pkg/instances"
 )
 
-func TestParseHosts(t *testing.T) {
-	r := ConfigMapReconciler{}
+func TestParseInstances(t *testing.T) {
 
 	testCases := []struct {
 		name        string
@@ -63,7 +62,7 @@ func TestParseHosts(t *testing.T) {
 	}
 	for _, test := range testCases {
 		t.Run(test.name, func(t *testing.T) {
-			out, err := r.parseHosts(test.input)
+			out, err := instances.ParseInstances(test.input)
 			if test.expectedErr {
 				assert.Error(t, err)
 				return
