@@ -31,6 +31,16 @@ WORKDIR $REMOTE_SOURCE_DIR/build/windows-machine-config-operator/windows_exporte
 COPY $REMOTE_SOURCE/app/windows_exporter/ .
 RUN GOOS=windows ./promu build -v
 
+# Build containerd
+WORKDIR $REMOTE_SOURCE_DIR/build/windows-machine-config-operator/containerd/
+COPY $REMOTE_SOURCE/app/containerd/ .
+RUN GOOS=windows make
+
+# Build containerd shim
+WORKDIR $REMOTE_SOURCE_DIR/build/windows-machine-config-operator/hcsshim/
+COPY $REMOTE_SOURCE/app/hcsshim/ .
+RUN GOOS=windows go build ./cmd/containerd-shim-runhcs-v1
+
 # Build kubelet
 WORKDIR $REMOTE_SOURCE_DIR/build/windows-machine-config-operator/kubelet/
 COPY $REMOTE_SOURCE/app/kubelet/ .
@@ -77,6 +87,9 @@ RUN make build
 #│   ├── win-bridge.exe
 #│   ├── win-overlay.exe
 #│   └── cni-conf-template.json
+#├── containerd
+#│   ├── containerd.exe
+#│   └── containerd-shim-runhcs-v1.exe
 #├── hybrid-overlay-node.exe
 #├── kube-node
 #│   ├── kubelet.exe
@@ -115,6 +128,11 @@ COPY --from=build $REMOTE_SOURCE_DIR/build/windows-machine-config-operator/ovn-k
 
 # Copy windows_exporter.exe
 COPY --from=build $REMOTE_SOURCE_DIR/build/windows-machine-config-operator/windows_exporter/windows_exporter.exe .
+
+# Copy containerd.exe and containerd-shim-runhcs-v1.exe
+WORKDIR /payload/containerd/
+COPY --from=build $REMOTE_SOURCE_DIR/build/windows-machine-config-operator/containerd/bin/containerd.exe .
+COPY --from=build $REMOTE_SOURCE_DIR/build/windows-machine-config-operator/hcsshim/containerd-shim-runhcs-v1.exe .
 
 # Copy kubelet.exe and kube-proxy.exe
 WORKDIR /payload/kube-node/
