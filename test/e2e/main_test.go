@@ -91,6 +91,8 @@ func NewTestContext() (*testContext, error) {
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to determine if cluster is using custom VXLAN port")
 	}
+
+	// If the platform type is none there is no need to creat new cloud provider
 	cloudProvider, err := providers.NewCloudProvider(hasCustomVXLANPort)
 	if err != nil {
 		return nil, errors.Wrap(err, "cloud provider creation failed")

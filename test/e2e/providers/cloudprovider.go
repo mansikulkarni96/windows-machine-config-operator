@@ -37,6 +37,8 @@ func NewCloudProvider(hasCustomVXLANPort bool) (CloudProvider, error) {
 		return azureProvider.New(openshift, hasCustomVXLANPort)
 	case config.VSpherePlatformType:
 		return vSphereProvider.New(openshift)
+	case config.NonePlatformType:
+		return nil, nil
 	default:
 		return nil, fmt.Errorf("the '%v' cloud provider is not supported", provider)
 	}
