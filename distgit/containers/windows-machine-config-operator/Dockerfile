@@ -1,9 +1,12 @@
 # dist-git Dockerfile
 # We cannot use a golang image as building the kubelet requires rsync and that is not present plus there is no easy way
 # to install it in the golang image.
-FROM openshift/golang-builder:rhel_8_1.16 as build
+FROM openshift/golang-builder:rhel_8_1.17 as build
 LABEL stage=build
 WORKDIR $REMOTE_SOURCE_DIR/build/
+
+# dos2unix is needed to build CNI plugins
+RUN yum install -y dos2unix
 
 WORKDIR $REMOTE_SOURCE_DIR/build/windows-machine-config-operator
 # Copy .git metadata so that we can generate the version for the WMCO binary
@@ -34,7 +37,7 @@ RUN GOOS=windows ./promu build -v
 # Build containerd
 WORKDIR $REMOTE_SOURCE_DIR/build/windows-machine-config-operator/containerd/
 COPY $REMOTE_SOURCE/app/containerd/ .
-RUN GOOS=windows make
+RUN GOOS=windows make bin/containerd.exe
 
 # Build containerd shim
 WORKDIR $REMOTE_SOURCE_DIR/build/windows-machine-config-operator/hcsshim/
@@ -52,6 +55,11 @@ WORKDIR $REMOTE_SOURCE_DIR/build/windows-machine-config-operator/kube-proxy/
 COPY $REMOTE_SOURCE/app/kube-proxy/ .
 ENV KUBE_BUILD_PLATFORMS windows/amd64
 RUN make WHAT=cmd/kube-proxy
+
+# Build azure-cloud-node-manager
+WORKDIR $REMOTE_SOURCE_DIR/build/windows-machine-config-operator/cloud-provider-azure/
+COPY $REMOTE_SOURCE/app/cloud-provider-azure/ .
+RUN GOOS=windows go build -o azure-cloud-node-manager.exe ./cmd/cloud-node-manager
 
 # Build CNI plugins
 WORKDIR $REMOTE_SOURCE_DIR/build/windows-machine-config-operator/containernetworking-plugins/
@@ -81,8 +89,8 @@ RUN make build
 
 # Build the operator image with following payload structure
 # /payload/
+#├── azure-cloud-node-manager.exe
 #├── cni
-#│   ├── flannel.exe
 #│   ├── host-local.exe
 #│   ├── win-bridge.exe
 #│   ├── win-overlay.exe
@@ -113,7 +121,7 @@ LABEL com.redhat.component="windows-machine-config-operator-container" \
     io.openshift.maintainer.product="OpenShift Container Platform" \
     io.openshift.maintainer.component="Windows Containers" \
     com.redhat.delivery.appregistry="false" \
-    version="4.0.1" \
+    version="5.0.0" \
     maintainer="team-winc@redhat.com"
 
 # Install tar so that we do "oc cp" to extract the manifests in the CPaaS pipeline
@@ -129,6 +137,9 @@ COPY --from=build $REMOTE_SOURCE_DIR/build/windows-machine-config-operator/ovn-k
 # Copy windows_exporter.exe
 COPY --from=build $REMOTE_SOURCE_DIR/build/windows-machine-config-operator/windows_exporter/windows_exporter.exe .
 
+# Copy azure-cloud-node-manager.exe
+COPY --from=build $REMOTE_SOURCE_DIR/build/windows-machine-config-operator/cloud-provider-azure/azure-cloud-node-manager.exe .
+
 # Copy containerd.exe and containerd-shim-runhcs-v1.exe
 WORKDIR /payload/containerd/
 COPY --from=build $REMOTE_SOURCE_DIR/build/windows-machine-config-operator/containerd/bin/containerd.exe .
@@ -141,7 +152,6 @@ COPY --from=build $REMOTE_SOURCE_DIR/build/windows-machine-config-operator/kube-
 
 # Copy CNI plugin binaries and CNI config template cni-conf-template.json
 WORKDIR /payload/cni/
-COPY --from=build $REMOTE_SOURCE_DIR/build/windows-machine-config-operator/containernetworking-plugins/bin/flannel.exe .
 COPY --from=build $REMOTE_SOURCE_DIR/build/windows-machine-config-operator/containernetworking-plugins/bin/host-local.exe .
 COPY --from=build $REMOTE_SOURCE_DIR/build/windows-machine-config-operator/containernetworking-plugins/bin/win-bridge.exe .
 COPY --from=build $REMOTE_SOURCE_DIR/build/windows-machine-config-operator/containernetworking-plugins/bin/win-overlay.exe .
