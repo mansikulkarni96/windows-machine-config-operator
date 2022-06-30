@@ -1,7 +1,7 @@
 # dist-git Dockerfile
 # We cannot use a golang image as building the kubelet requires rsync and that is not present plus there is no easy way
 # to install it in the golang image.
-FROM openshift/golang-builder:rhel_8_1.17 as build
+FROM openshift/golang-builder:rhel_8_1.18 as build
 LABEL stage=build
 WORKDIR $REMOTE_SOURCE_DIR/build/
 
@@ -71,7 +71,7 @@ RUN ./build_windows.sh
 WORKDIR $REMOTE_SOURCE_DIR/build/windows-machine-config-operator
 # Copy files and directories needed to build the WMCO binary
 COPY $REMOTE_SOURCE/app/build build
-COPY $REMOTE_SOURCE/app/main.go main.go
+COPY $REMOTE_SOURCE/app/cmd cmd
 COPY $REMOTE_SOURCE/app/controllers controllers
 COPY $REMOTE_SOURCE/app/bundle bundle
 COPY $REMOTE_SOURCE/app/hack hack
@@ -98,6 +98,7 @@ RUN make build
 #├── containerd
 #│   ├── containerd.exe
 #│   └── containerd-shim-runhcs-v1.exe
+#│   └── containerd_conf.toml
 #├── hybrid-overlay-node.exe
 #├── kube-node
 #│   ├── kubelet.exe
@@ -121,7 +122,7 @@ LABEL com.redhat.component="windows-machine-config-operator-container" \
     io.openshift.maintainer.product="OpenShift Container Platform" \
     io.openshift.maintainer.component="Windows Containers" \
     com.redhat.delivery.appregistry="false" \
-    version="5.1.0" \
+    version="6.0.0" \
     maintainer="team-winc@redhat.com"
 
 # Install tar so that we do "oc cp" to extract the manifests in the CPaaS pipeline
@@ -140,10 +141,11 @@ COPY --from=build $REMOTE_SOURCE_DIR/build/windows-machine-config-operator/windo
 # Copy azure-cloud-node-manager.exe
 COPY --from=build $REMOTE_SOURCE_DIR/build/windows-machine-config-operator/cloud-provider-azure/azure-cloud-node-manager.exe .
 
-# Copy containerd.exe and containerd-shim-runhcs-v1.exe
+# Copy containerd.exe, containerd-shim-runhcs-v1.exe and containerd config containerd_conf.toml
 WORKDIR /payload/containerd/
 COPY --from=build $REMOTE_SOURCE_DIR/build/windows-machine-config-operator/containerd/bin/containerd.exe .
 COPY --from=build $REMOTE_SOURCE_DIR/build/windows-machine-config-operator/hcsshim/containerd-shim-runhcs-v1.exe .
+COPY --from=build $REMOTE_SOURCE_DIR/build/windows-machine-config-operator/pkg/internal/containerd_conf.toml .
 
 # Copy kubelet.exe and kube-proxy.exe
 WORKDIR /payload/kube-node/
