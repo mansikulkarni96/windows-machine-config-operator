@@ -45,16 +45,14 @@ COPY $REMOTE_SOURCE/app/hcsshim/ .
 RUN GOOS=windows go build ./cmd/containerd-shim-runhcs-v1
 
 # Build kubelet
-WORKDIR $REMOTE_SOURCE_DIR/build/windows-machine-config-operator/kubelet/
-COPY $REMOTE_SOURCE/app/kubelet/ .
-ENV KUBE_BUILD_PLATFORMS windows/amd64
-RUN make WHAT=cmd/kubelet
+WORKDIR $REMOTE_SOURCE_DIR/build/windows-machine-config-operator/
+COPY $REMOTE_SOURCE/app/kubelet/ kubelet/
+COPY $REMOTE_SOURCE/app/Makefile Makefile
+RUN make kubelet
 
 # Build kube-proxy
-WORKDIR $REMOTE_SOURCE_DIR/build/windows-machine-config-operator/kube-proxy/
-COPY $REMOTE_SOURCE/app/kube-proxy/ .
-ENV KUBE_BUILD_PLATFORMS windows/amd64
-RUN make WHAT=cmd/kube-proxy
+COPY $REMOTE_SOURCE/app/kube-proxy/ kube-proxy/
+RUN make kube-proxy
 
 # Build azure-cloud-node-manager
 WORKDIR $REMOTE_SOURCE_DIR/build/windows-machine-config-operator/cloud-provider-azure/
@@ -81,7 +79,6 @@ COPY $REMOTE_SOURCE/app/vendor vendor
 COPY $REMOTE_SOURCE/app/version version
 COPY $REMOTE_SOURCE/app/go.mod go.mod
 COPY $REMOTE_SOURCE/app/go.sum go.sum
-COPY $REMOTE_SOURCE/app/Makefile Makefile
 COPY $REMOTE_SOURCE/app/tools.go tools.go
 COPY $REMOTE_SOURCE/app/bundle.Dockerfile bundle.Dockerfile
 COPY $REMOTE_SOURCE/app/.gitignore .gitignore
