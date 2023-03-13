@@ -35,9 +35,10 @@ COPY $REMOTE_SOURCE/app/windows_exporter/ .
 RUN GOOS=windows ./promu build -v
 
 # Build containerd
-WORKDIR $REMOTE_SOURCE_DIR/build/windows-machine-config-operator/containerd/
-COPY $REMOTE_SOURCE/app/containerd/ .
-RUN GOOS=windows make bin/containerd.exe
+WORKDIR $REMOTE_SOURCE_DIR/build/windows-machine-config-operator/
+COPY $REMOTE_SOURCE/app/containerd/ containerd/
+COPY $REMOTE_SOURCE/app/Makefile Makefile
+RUN make containerd
 
 # Build containerd shim
 WORKDIR $REMOTE_SOURCE_DIR/build/windows-machine-config-operator/hcsshim/
@@ -47,7 +48,6 @@ RUN GOOS=windows go build ./cmd/containerd-shim-runhcs-v1
 # Build kubelet
 WORKDIR $REMOTE_SOURCE_DIR/build/windows-machine-config-operator/
 COPY $REMOTE_SOURCE/app/kubelet/ kubelet/
-COPY $REMOTE_SOURCE/app/Makefile Makefile
 RUN make kubelet
 
 # Build kube-proxy
