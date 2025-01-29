@@ -21,6 +21,15 @@ import (
 	"net"
 
 	config "github.com/openshift/api/config/v1"
+	"github.com/openshift/windows-machine-config-operator/pkg/cluster"
+	"github.com/openshift/windows-machine-config-operator/pkg/condition"
+	"github.com/openshift/windows-machine-config-operator/pkg/crypto"
+	"github.com/openshift/windows-machine-config-operator/pkg/instance"
+	"github.com/openshift/windows-machine-config-operator/pkg/metrics"
+	"github.com/openshift/windows-machine-config-operator/pkg/nodeconfig"
+	"github.com/openshift/windows-machine-config-operator/pkg/secrets"
+	"github.com/openshift/windows-machine-config-operator/pkg/signer"
+	"github.com/openshift/windows-machine-config-operator/pkg/wiparser"
 	"github.com/pkg/errors"
 	core "k8s.io/api/core/v1"
 	k8sapierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -35,17 +44,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
-	"sigs.k8s.io/controller-runtime/pkg/source"
-
-	"github.com/openshift/windows-machine-config-operator/pkg/cluster"
-	"github.com/openshift/windows-machine-config-operator/pkg/condition"
-	"github.com/openshift/windows-machine-config-operator/pkg/crypto"
-	"github.com/openshift/windows-machine-config-operator/pkg/instance"
-	"github.com/openshift/windows-machine-config-operator/pkg/metrics"
-	"github.com/openshift/windows-machine-config-operator/pkg/nodeconfig"
-	"github.com/openshift/windows-machine-config-operator/pkg/secrets"
-	"github.com/openshift/windows-machine-config-operator/pkg/signer"
-	"github.com/openshift/windows-machine-config-operator/pkg/wiparser"
 )
 
 //+kubebuilder:rbac:groups="",resources=configmaps,verbs=get;list;watch;create;update;patch;delete
@@ -257,7 +255,7 @@ func hasAssociatedInstance(nodeAddresses []core.NodeAddress, instances []*instan
 }
 
 // mapToConfigMap fulfills the MapFn type, while always returning a request to the windows-instance ConfigMap
-func (r *ConfigMapReconciler) mapToConfigMap(_ client.Object) []reconcile.Request {
+func (r *ConfigMapReconciler) mapToConfigMap(_ context.Context, _ client.Object) []reconcile.Request {
 	return []reconcile.Request{{
 		NamespacedName: kubeTypes.NamespacedName{Namespace: r.watchNamespace, Name: wiparser.InstanceConfigMap},
 	}}
@@ -281,7 +279,7 @@ func (r *ConfigMapReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	}
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&core.ConfigMap{}, builder.WithPredicates(configMapPredicate)).
-		Watches(&source.Kind{Type: &core.Node{}}, handler.EnqueueRequestsFromMapFunc(r.mapToConfigMap),
+		Watches(&core.Node{}, handler.EnqueueRequestsFromMapFunc(r.mapToConfigMap),
 			builder.WithPredicates(windowsNodePredicate(true))).
 		Complete(r)
 }

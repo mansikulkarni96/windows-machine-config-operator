@@ -9,6 +9,16 @@ import (
 	oconfig "github.com/openshift/api/config/v1"
 	mapi "github.com/openshift/api/machine/v1beta1"
 	mclient "github.com/openshift/client-go/machine/clientset/versioned/typed/machine/v1beta1"
+	"github.com/openshift/windows-machine-config-operator/pkg/cluster"
+	"github.com/openshift/windows-machine-config-operator/pkg/condition"
+	"github.com/openshift/windows-machine-config-operator/pkg/instance"
+	"github.com/openshift/windows-machine-config-operator/pkg/metadata"
+	"github.com/openshift/windows-machine-config-operator/pkg/metrics"
+	"github.com/openshift/windows-machine-config-operator/pkg/nodeconfig"
+	"github.com/openshift/windows-machine-config-operator/pkg/secrets"
+	"github.com/openshift/windows-machine-config-operator/pkg/signer"
+	"github.com/openshift/windows-machine-config-operator/pkg/windows"
+	"github.com/openshift/windows-machine-config-operator/version"
 	"github.com/pkg/errors"
 	core "k8s.io/api/core/v1"
 	k8sapierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -24,18 +34,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
-	"sigs.k8s.io/controller-runtime/pkg/source"
-
-	"github.com/openshift/windows-machine-config-operator/pkg/cluster"
-	"github.com/openshift/windows-machine-config-operator/pkg/condition"
-	"github.com/openshift/windows-machine-config-operator/pkg/instance"
-	"github.com/openshift/windows-machine-config-operator/pkg/metadata"
-	"github.com/openshift/windows-machine-config-operator/pkg/metrics"
-	"github.com/openshift/windows-machine-config-operator/pkg/nodeconfig"
-	"github.com/openshift/windows-machine-config-operator/pkg/secrets"
-	"github.com/openshift/windows-machine-config-operator/pkg/signer"
-	"github.com/openshift/windows-machine-config-operator/pkg/windows"
-	"github.com/openshift/windows-machine-config-operator/version"
 )
 
 //+kubebuilder:rbac:groups=config.openshift.io,resources=clusteroperators,verbs=get;list;watch
@@ -127,13 +125,13 @@ func (r *WindowsMachineReconciler) SetupWithManager(mgr ctrl.Manager) error {
 
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&mapi.Machine{}, builder.WithPredicates(machinePredicate)).
-		Watches(&source.Kind{Type: &core.Node{}}, handler.EnqueueRequestsFromMapFunc(r.mapNodeToMachine),
+		Watches(&core.Node{}, handler.EnqueueRequestsFromMapFunc(r.mapNodeToMachine),
 			builder.WithPredicates(windowsNodePredicate(false))).
 		Complete(r)
 }
 
 // mapNodeToMachine maps the given Windows node to its associated Machine
-func (r *WindowsMachineReconciler) mapNodeToMachine(object client.Object) []reconcile.Request {
+func (r *WindowsMachineReconciler) mapNodeToMachine(_ context.Context, object client.Object) []reconcile.Request {
 	node := core.Node{}
 
 	// If for some reason this mapper is called on an object which is not a Node, return

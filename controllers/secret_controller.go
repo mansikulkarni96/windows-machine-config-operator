@@ -4,6 +4,13 @@ import (
 	"context"
 
 	"github.com/go-logr/logr"
+	"github.com/openshift/windows-machine-config-operator/pkg/condition"
+	"github.com/openshift/windows-machine-config-operator/pkg/crypto"
+	"github.com/openshift/windows-machine-config-operator/pkg/metadata"
+	"github.com/openshift/windows-machine-config-operator/pkg/nodeconfig"
+	"github.com/openshift/windows-machine-config-operator/pkg/secrets"
+	"github.com/openshift/windows-machine-config-operator/pkg/signer"
+	"github.com/openshift/windows-machine-config-operator/pkg/wiparser"
 	"github.com/pkg/errors"
 	core "k8s.io/api/core/v1"
 	k8sapierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -21,15 +28,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
-	"sigs.k8s.io/controller-runtime/pkg/source"
-
-	"github.com/openshift/windows-machine-config-operator/pkg/condition"
-	"github.com/openshift/windows-machine-config-operator/pkg/crypto"
-	"github.com/openshift/windows-machine-config-operator/pkg/metadata"
-	"github.com/openshift/windows-machine-config-operator/pkg/nodeconfig"
-	"github.com/openshift/windows-machine-config-operator/pkg/secrets"
-	"github.com/openshift/windows-machine-config-operator/pkg/signer"
-	"github.com/openshift/windows-machine-config-operator/pkg/wiparser"
 )
 
 //+kubebuilder:rbac:groups="",resources=nodes,verbs=*
@@ -99,7 +97,7 @@ func (r *SecretReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	})
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&core.Secret{}, privateKeyPredicate).
-		Watches(&source.Kind{Type: &core.Secret{}}, handler.EnqueueRequestsFromMapFunc(r.mapToPrivateKeySecret),
+		Watches(&core.Secret{}, handler.EnqueueRequestsFromMapFunc(r.mapToPrivateKeySecret),
 			mappingPredicate).
 		Complete(r)
 }
@@ -286,7 +284,7 @@ func (r *SecretReconciler) RemoveInvalidAnnotationsFromLinuxNodes(config *rest.C
 }
 
 // mapToPrivateKeySecret is a mapping function that will always return a request for the cloud private key secret
-func (r *SecretReconciler) mapToPrivateKeySecret(_ client.Object) []reconcile.Request {
+func (r *SecretReconciler) mapToPrivateKeySecret(_ context.Context, _ client.Object) []reconcile.Request {
 	return []reconcile.Request{
 		{NamespacedName: kubeTypes.NamespacedName{Namespace: r.watchNamespace, Name: secrets.PrivateKeySecret}},
 	}
