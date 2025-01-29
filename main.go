@@ -18,6 +18,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
+	"sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
 	"github.com/openshift/windows-machine-config-operator/controllers"
 	"github.com/openshift/windows-machine-config-operator/pkg/cluster"
@@ -138,9 +139,8 @@ func main() {
 	//       with cluster scoped resources. Once those issues are resolved, it may be worth switching to using that
 	//       cache type.
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
-		Scheme:             scheme,
-		MetricsBindAddress: fmt.Sprintf("%s:%d", metrics.Host, metrics.Port),
-		Port:               9443,
+		Scheme:  scheme,
+		Metrics: server.Options{BindAddress: fmt.Sprintf("%s:%d", metrics.Host, metrics.Port)},
 	})
 	if err != nil {
 		setupLog.Error(err, "unable to start manager")
