@@ -77,7 +77,7 @@ func newAzureMachineProviderSpec(clusterID string, status *config.PlatformStatus
 			Namespace: clusterinfo.MachineAPINamespace,
 		},
 		Location: location,
-		Zone:     &zone,
+		Zone:     zone,
 		VMSize:   vmSize,
 		Image: mapi.Image{
 			Publisher: defaultImagePublisher,
@@ -88,7 +88,7 @@ func newAzureMachineProviderSpec(clusterID string, status *config.PlatformStatus
 		OSDisk: mapi.OSDisk{
 			OSType:     "Windows",
 			DiskSizeGB: defaultOSDiskSizeGB,
-			ManagedDisk: mapi.ManagedDiskParameters{
+			ManagedDisk: mapi.OSDiskManagedDiskParameters{
 				StorageAccountType: defaultStorageAccountType,
 			},
 		},
@@ -124,7 +124,7 @@ func (p *Provider) GenerateMachineSet(withWindowsLabel bool, replicas int32) (*m
 	}
 
 	// create new machine provider spec for deploying Windows node in the same Location and Zone as master-0
-	providerSpec, err := newAzureMachineProviderSpec(clusterID, platformStatus, masterProviderSpec.Location, *masterProviderSpec.Zone, p.vmSize)
+	providerSpec, err := newAzureMachineProviderSpec(clusterID, platformStatus, masterProviderSpec.Location, masterProviderSpec.Zone, p.vmSize)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create new azure machine provider spec: %v", err)
 	}
