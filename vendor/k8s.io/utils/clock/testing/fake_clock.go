@@ -48,7 +48,6 @@ type fakeClockWaiter struct {
 	stepInterval  time.Duration
 	skipIfBlocked bool
 	destChan      chan time.Time
-	fired         bool
 	afterFunc     func()
 }
 
@@ -198,12 +197,10 @@ func (f *FakeClock) setTimeLocked(t time.Time) {
 			if w.skipIfBlocked {
 				select {
 				case w.destChan <- t:
-					w.fired = true
 				default:
 				}
 			} else {
 				w.destChan <- t
-				w.fired = true
 			}
 
 			if w.afterFunc != nil {
@@ -239,7 +236,8 @@ func (f *FakeClock) Sleep(d time.Duration) {
 
 // IntervalClock implements clock.PassiveClock, but each invocation of Now steps the clock forward the specified duration.
 // IntervalClock technically implements the other methods of clock.Clock, but each implementation is just a panic.
-// See SimpleIntervalClock for an alternative that only has the methods of PassiveClock.
+//
+// Deprecated: See SimpleIntervalClock for an alternative that only has the methods of PassiveClock.
 type IntervalClock struct {
 	Time     time.Time
 	Duration time.Duration
@@ -282,9 +280,9 @@ func (*IntervalClock) Tick(d time.Duration) <-chan time.Time {
 
 // NewTicker has no implementation yet and is omitted.
 // TODO: make interval clock use FakeClock so this can be implemented.
-//func (*IntervalClock) NewTicker(d time.Duration) clock.Ticker {
-//	panic("IntervalClock doesn't implement NewTicker")
-//}
+func (*IntervalClock) NewTicker(d time.Duration) clock.Ticker {
+	panic("IntervalClock doesn't implement NewTicker")
+}
 
 // Sleep is unimplemented, will panic.
 func (*IntervalClock) Sleep(d time.Duration) {
@@ -304,44 +302,48 @@ func (f *fakeTimer) C() <-chan time.Time {
 	return f.waiter.destChan
 }
 
-// Stop stops the timer and returns true if the timer has not yet fired, or false otherwise.
+// Stop prevents the Timer from firing. It returns true if the call stops the
+// timer, false if the timer has already expired or been stopped.
 func (f *fakeTimer) Stop() bool {
 	f.fakeClock.lock.Lock()
 	defer f.fakeClock.lock.Unlock()
 
+	active := false
 	newWaiters := make([]*fakeClockWaiter, 0, len(f.fakeClock.waiters))
 	for i := range f.fakeClock.waiters {
 		w := f.fakeClock.waiters[i]
 		if w != &f.waiter {
 			newWaiters = append(newWaiters, w)
+			continue
 		}
+		// If timer is found, it has not been fired yet.
+		active = true
 	}
 
 	f.fakeClock.waiters = newWaiters
 
-	return !f.waiter.fired
+	return active
 }
 
-// Reset resets the timer to the fake clock's "now" + d. It returns true if the timer has not yet
-// fired, or false otherwise.
+// Reset changes the timer to expire after duration d. It returns true if the
+// timer had been active, false if the timer had expired or been stopped.
 func (f *fakeTimer) Reset(d time.Duration) bool {
 	f.fakeClock.lock.Lock()
 	defer f.fakeClock.lock.Unlock()
 
-	active := !f.waiter.fired
+	active := false
 
-	f.waiter.fired = false
 	f.waiter.targetTime = f.fakeClock.time.Add(d)
 
-	var isWaiting bool
 	for i := range f.fakeClock.waiters {
 		w := f.fakeClock.waiters[i]
 		if w == &f.waiter {
-			isWaiting = true
+			// If timer is found, it has not been fired yet.
+			active = true
 			break
 		}
 	}
-	if !isWaiting {
+	if !active {
 		f.fakeClock.waiters = append(f.fakeClock.waiters, &f.waiter)
 	}
 

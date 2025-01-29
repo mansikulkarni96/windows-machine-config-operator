@@ -20,6 +20,8 @@ type EtcdExpansion interface{}
 
 type IngressControllerExpansion interface{}
 
+type InsightsOperatorExpansion interface{}
+
 type KubeAPIServerExpansion interface{}
 
 type KubeControllerManagerExpansion interface{}
@@ -28,7 +30,11 @@ type KubeSchedulerExpansion interface{}
 
 type KubeStorageVersionMigratorExpansion interface{}
 
+type MachineConfigurationExpansion interface{}
+
 type NetworkExpansion interface{}
+
+type OLMExpansion interface{}
 
 type OpenShiftAPIServerExpansion interface{}
 

@@ -3,10 +3,10 @@
 package v1
 
 import (
-	"net/http"
+	http "net/http"
 
-	v1 "github.com/openshift/api/config/v1"
-	"github.com/openshift/client-go/config/clientset/versioned/scheme"
+	configv1 "github.com/openshift/api/config/v1"
+	scheme "github.com/openshift/client-go/config/clientset/versioned/scheme"
 	rest "k8s.io/client-go/rest"
 )
 
@@ -22,9 +22,12 @@ type ConfigV1Interface interface {
 	FeatureGatesGetter
 	ImagesGetter
 	ImageContentPoliciesGetter
+	ImageDigestMirrorSetsGetter
+	ImageTagMirrorSetsGetter
 	InfrastructuresGetter
 	IngressesGetter
 	NetworksGetter
+	NodesGetter
 	OAuthsGetter
 	OperatorHubsGetter
 	ProjectsGetter
@@ -77,6 +80,14 @@ func (c *ConfigV1Client) ImageContentPolicies() ImageContentPolicyInterface {
 	return newImageContentPolicies(c)
 }
 
+func (c *ConfigV1Client) ImageDigestMirrorSets() ImageDigestMirrorSetInterface {
+	return newImageDigestMirrorSets(c)
+}
+
+func (c *ConfigV1Client) ImageTagMirrorSets() ImageTagMirrorSetInterface {
+	return newImageTagMirrorSets(c)
+}
+
 func (c *ConfigV1Client) Infrastructures() InfrastructureInterface {
 	return newInfrastructures(c)
 }
@@ -87,6 +98,10 @@ func (c *ConfigV1Client) Ingresses() IngressInterface {
 
 func (c *ConfigV1Client) Networks() NetworkInterface {
 	return newNetworks(c)
+}
+
+func (c *ConfigV1Client) Nodes() NodeInterface {
+	return newNodes(c)
 }
 
 func (c *ConfigV1Client) OAuths() OAuthInterface {
@@ -154,10 +169,10 @@ func New(c rest.Interface) *ConfigV1Client {
 }
 
 func setConfigDefaults(config *rest.Config) error {
-	gv := v1.SchemeGroupVersion
+	gv := configv1.SchemeGroupVersion
 	config.GroupVersion = &gv
 	config.APIPath = "/apis"
-	config.NegotiatedSerializer = scheme.Codecs.WithoutConversion()
+	config.NegotiatedSerializer = rest.CodecFactoryForGeneratedClient(scheme.Scheme, scheme.Codecs).WithoutConversion()
 
 	if config.UserAgent == "" {
 		config.UserAgent = rest.DefaultKubernetesUserAgent()
