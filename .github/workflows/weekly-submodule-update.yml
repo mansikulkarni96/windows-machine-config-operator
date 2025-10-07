@@ -1,0 +1,38 @@
+name: Weekly Submodule Updates
+
+on:
+  schedule:
+    - cron: '0 9 * * 1'  # Every Monday at 9 AM UTC
+  workflow_dispatch:  # Allow manual trigger
+
+jobs:
+  update-submodules:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: true
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Configure Git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Update submodules
+        run: |
+          git submodule update --remote --merge
+
+      - name: Create Pull Request
+        uses: peter-evans/create-pull-request@v6
+        with:
+          commit-message: "chore: update git submodules"
+          title: "Weekly submodule updates"
+          body: |
+            Automated weekly update of git submodules.
+
+            This PR updates all submodules to their latest commits on their tracked branches.
+          branch: submodule-updates-weekly
+          delete-branch: true
+          labels: dependencies
