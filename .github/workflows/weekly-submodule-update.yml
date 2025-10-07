@@ -12,8 +12,18 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          submodules: true
+          fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: 'go.mod'
+
+      - name: Initialize submodules
+        run: |
+          git submodule update --init
+          git submodule foreach 'git fetch origin'
 
       - name: Configure Git
         run: |
@@ -28,13 +38,13 @@ jobs:
         run: |
           ./hack/update_submodules.sh ${{ steps.branch.outputs.name }}
 
-      - name: Create Pull Request
+      - name: Push and create Pull Request
         run: |
           git push origin submodule-update-${{ steps.branch.outputs.name }} --force
           gh pr create --title "Weekly submodule updates for ${{ steps.branch.outputs.name }}" \
             --body "Automated weekly update of git submodules and dependencies." \
             --base ${{ steps.branch.outputs.name }} \
             --head submodule-update-${{ steps.branch.outputs.name }} \
-            --label dependencies || echo "PR already exists"
+            --label dependencies || echo "PR may already exist"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
