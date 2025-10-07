@@ -35,16 +35,19 @@ jobs:
         run: echo "name=$(git rev-parse --abbrev-ref HEAD)" >> $GITHUB_OUTPUT
 
       - name: Update submodules
+        id: update
         run: |
           ./hack/update_submodules.sh ${{ steps.branch.outputs.name }}
+          new_branch=$(git branch --list "${{ steps.branch.outputs.name }}-submodule-update-*" | head -1 | xargs)
+          echo "new_branch=$new_branch" >> $GITHUB_OUTPUT
 
       - name: Push and create Pull Request
         run: |
-          git push origin submodule-update-${{ steps.branch.outputs.name }} --force
+          git push origin ${{ steps.update.outputs.new_branch }} --force
           gh pr create --title "Weekly submodule updates for ${{ steps.branch.outputs.name }}" \
             --body "Automated weekly update of git submodules and dependencies." \
             --base ${{ steps.branch.outputs.name }} \
-            --head submodule-update-${{ steps.branch.outputs.name }} \
+            --head ${{ steps.update.outputs.new_branch }} \
             --label dependencies || echo "PR may already exist"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
