@@ -12,7 +12,7 @@ import (
 	internal "github.com/openshift/client-go/config/applyconfigurations/internal"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	schema "k8s.io/apimachinery/pkg/runtime/schema"
-	testing "k8s.io/client-go/testing"
+	managedfields "k8s.io/apimachinery/pkg/util/managedfields"
 )
 
 // ForKind returns an apply configuration type for the given GroupVersionKind, or nil if no
@@ -178,8 +178,6 @@ func ForKind(kind schema.GroupVersionKind) interface{} {
 		return &configv1.GCPResourceLabelApplyConfiguration{}
 	case v1.SchemeGroupVersion.WithKind("GCPResourceTag"):
 		return &configv1.GCPResourceTagApplyConfiguration{}
-	case v1.SchemeGroupVersion.WithKind("GCPServiceEndpoint"):
-		return &configv1.GCPServiceEndpointApplyConfiguration{}
 	case v1.SchemeGroupVersion.WithKind("GitHubIdentityProvider"):
 		return &configv1.GitHubIdentityProviderApplyConfiguration{}
 	case v1.SchemeGroupVersion.WithKind("GitLabIdentityProvider"):
@@ -553,6 +551,6 @@ func ForKind(kind schema.GroupVersionKind) interface{} {
 	return nil
 }
 
-func NewTypeConverter(scheme *runtime.Scheme) *testing.TypeConverter {
-	return &testing.TypeConverter{Scheme: scheme, TypeResolver: internal.Parser()}
+func NewTypeConverter(scheme *runtime.Scheme) managedfields.TypeConverter {
+	return managedfields.NewSchemeTypeConverter(scheme, internal.Parser())
 }
