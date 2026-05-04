@@ -8,9 +8,19 @@ import (
 
 // KMSConfigApplyConfiguration represents a declarative configuration of the KMSConfig type for use
 // with apply.
+//
+// KMSConfig defines the configuration for the KMS instance
+// that will be used with KMS encryption
 type KMSConfigApplyConfiguration struct {
-	Type *configv1.KMSProviderType       `json:"type,omitempty"`
-	AWS  *AWSKMSConfigApplyConfiguration `json:"aws,omitempty"`
+	// type defines the kind of platform for the KMS provider.
+	// Allowed values are Vault.
+	// When set to Vault, the plugin connects to a HashiCorp Vault server for key management.
+	Type *configv1.KMSProviderType `json:"type,omitempty"`
+	// vault defines the configuration for the Vault KMS plugin.
+	// The plugin connects to a Vault Enterprise server that is managed
+	// by the user outside the purview of the control plane.
+	// This field must be set when type is Vault, and must be unset otherwise.
+	Vault *VaultKMSConfigApplyConfiguration `json:"vault,omitempty"`
 }
 
 // KMSConfigApplyConfiguration constructs a declarative configuration of the KMSConfig type for use with
@@ -27,10 +37,10 @@ func (b *KMSConfigApplyConfiguration) WithType(value configv1.KMSProviderType) *
 	return b
 }
 
-// WithAWS sets the AWS field in the declarative configuration to the given value
+// WithVault sets the Vault field in the declarative configuration to the given value
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
-// If called multiple times, the AWS field is set to the value of the last call.
-func (b *KMSConfigApplyConfiguration) WithAWS(value *AWSKMSConfigApplyConfiguration) *KMSConfigApplyConfiguration {
-	b.AWS = value
+// If called multiple times, the Vault field is set to the value of the last call.
+func (b *KMSConfigApplyConfiguration) WithVault(value *VaultKMSConfigApplyConfiguration) *KMSConfigApplyConfiguration {
+	b.Vault = value
 	return b
 }
