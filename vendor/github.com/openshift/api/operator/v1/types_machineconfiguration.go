@@ -18,7 +18,8 @@ import (
 // Compatibility level 1: Stable within a major release for a minimum of 12 months or 3 minor releases (whichever is longer).
 // +openshift:compatibility-gen:level=1
 // +openshift:validation:FeatureGateAwareXValidation:featureGate=BootImageSkewEnforcement,rule="self.?status.bootImageSkewEnforcementStatus.mode.orValue(\"\") == 'Automatic' ? self.?spec.managedBootImages.hasValue() || self.?status.managedBootImagesStatus.hasValue() : true",message="when skew enforcement is in Automatic mode, a boot image configuration is required"
-// +openshift:validation:FeatureGateAwareXValidation:featureGate=BootImageSkewEnforcement,rule="self.?status.bootImageSkewEnforcementStatus.mode.orValue(\"\") == 'Automatic' ? !(self.?spec.managedBootImages.machineManagers.hasValue()) || self.spec.managedBootImages.machineManagers.exists(m, m.selection.mode == 'All' && m.resource == 'machinesets' && m.apiGroup == 'machine.openshift.io') : true",message="when skew enforcement is in Automatic mode, managedBootImages must contain a MachineManager opting in all MachineAPI MachineSets"
+// +openshift:validation:FeatureGateAwareXValidation:featureGate=BootImageSkewEnforcement,rule="self.?status.bootImageSkewEnforcementStatus.mode.orValue(\"\") == 'Automatic' ? !(self.?spec.managedBootImages.machineManagers.hasValue()) || size(self.spec.managedBootImages.machineManagers) > 0 : true",message="when skew enforcement is in Automatic mode, managedBootImages.machineManagers must not be an empty list"
+// +openshift:validation:FeatureGateAwareXValidation:featureGate=BootImageSkewEnforcement,rule="self.?status.bootImageSkewEnforcementStatus.mode.orValue(\"\") == 'Automatic' ? !(self.?spec.managedBootImages.machineManagers.hasValue()) || !self.spec.managedBootImages.machineManagers.exists(m, m.resource == 'machinesets' && m.apiGroup == 'machine.openshift.io') || self.spec.managedBootImages.machineManagers.exists(m, m.resource == 'machinesets' && m.apiGroup == 'machine.openshift.io' && m.selection.mode == 'All') : true",message="when skew enforcement is in Automatic mode, any MachineAPI MachineSet MachineManager must use selection mode 'All'"
 // +openshift:validation:FeatureGateAwareXValidation:featureGate=BootImageSkewEnforcement,rule="self.?status.bootImageSkewEnforcementStatus.mode.orValue(\"\") == 'Automatic' ? !(self.?status.managedBootImagesStatus.machineManagers.hasValue()) || self.status.managedBootImagesStatus.machineManagers.exists(m, m.selection.mode == 'All' && m.resource == 'machinesets' && m.apiGroup == 'machine.openshift.io'): true",message="when skew enforcement is in Automatic mode, managedBootImagesStatus must contain a MachineManager opting in all MachineAPI MachineSets"
 type MachineConfiguration struct {
 	metav1.TypeMeta `json:",inline"`
@@ -46,7 +47,6 @@ type MachineConfigurationSpec struct {
 	// and the platform is left to choose a reasonable default, which is subject to change over time.
 	// The default for each machine manager mode is All for GCP and AWS platforms, and None for all
 	// other platforms.
-	// +openshift:enable:FeatureGate=ManagedBootImages
 	// +optional
 	ManagedBootImages ManagedBootImages `json:"managedBootImages"`
 
@@ -287,7 +287,6 @@ type MachineConfigurationStatus struct {
 
 	// managedBootImagesStatus reflects what the latest cluster-validated boot image configuration is
 	// and will be used by Machine Config Controller while performing boot image updates.
-	// +openshift:enable:FeatureGate=ManagedBootImages
 	// +optional
 	ManagedBootImagesStatus ManagedBootImages `json:"managedBootImagesStatus"`
 
@@ -366,16 +365,22 @@ type ManagedBootImages struct {
 
 // MachineManager describes a target machine resource that is registered for boot image updates. It stores identifying information
 // such as the resource type and the API Group of the resource. It also provides granular control via the selection field.
+// +openshift:validation:FeatureGateAwareXValidation:requiredFeatureGate=ManagedBootImagesCPMS,rule="self.resource != 'controlplanemachinesets' || self.selection.mode == 'All' || self.selection.mode == 'None'", message="Only All or None selection mode is permitted for ControlPlaneMachineSets"
+// +openshift:validation:FeatureGateAwareXValidation:requiredFeatureGate=ManagedBootImagesAWSCAPI,rule="self.resource == 'machinedeployments' ? self.apiGroup == 'cluster.x-k8s.io' : true",message="the machinedeployments resource is only supported in the cluster.x-k8s.io API group"
+// +openshift:validation:FeatureGateAwareXValidation:requiredFeatureGate=ManagedBootImagesCPMS;ManagedBootImagesAWSCAPI,rule="self.resource == 'controlplanemachinesets' ? self.apiGroup == 'machine.openshift.io' : true",message="the controlplanemachinesets resource is only supported in the machine.openshift.io API group"
 type MachineManager struct {
 	// resource is the machine management resource's type.
-	// The only current valid value is machinesets.
+	// Valid values are machinesets, controlplanemachinesets and machinedeployments.
 	// machinesets means that the machine manager will only register resources of the kind MachineSet.
+	// controlplanemachinesets means that the machine manager will only register resources of the kind ControlPlaneMachineSet.
+	// machinedeployments means that the machine manager will only register resources of the kind MachineDeployment.
 	// +required
 	Resource MachineManagerMachineSetsResourceType `json:"resource"`
 
 	// apiGroup is name of the APIGroup that the machine management resource belongs to.
-	// The only current valid value is machine.openshift.io.
+	// Valid values are machine.openshift.io and cluster.x-k8s.io.
 	// machine.openshift.io means that the machine manager will only register resources that belong to OpenShift machine API group.
+	// cluster.x-k8s.io means that the machine manager will only register resources that belong to the Cluster API group.
 	// +required
 	APIGroup MachineManagerMachineSetsAPIGroupType `json:"apiGroup"`
 
@@ -388,9 +393,10 @@ type MachineManager struct {
 // +union
 type MachineManagerSelector struct {
 	// mode determines how machine managers will be selected for updates.
-	// Valid values are All and Partial.
+	// Valid values are All, Partial and None.
 	// All means that every resource matched by the machine manager will be updated.
 	// Partial requires specified selector(s) and allows customisation of which resources matched by the machine manager will be updated.
+	// Partial is not permitted for the controlplanemachinesets resource type as they are a singleton within the cluster.
 	// None means that every resource matched by the machine manager will not be updated.
 	// +unionDiscriminator
 	// +required
@@ -427,23 +433,32 @@ const (
 
 // MachineManagerManagedResourceType is a string enum used in the MachineManager type to describe the resource
 // type to be registered.
-// +kubebuilder:validation:Enum:="machinesets"
+// +openshift:validation:FeatureGateAwareEnum:featureGate="",enum=machinesets
+// +openshift:validation:FeatureGateAwareEnum:featureGate=ManagedBootImagesCPMS,enum=machinesets;controlplanemachinesets
+// +openshift:validation:FeatureGateAwareEnum:featureGate=ManagedBootImagesAWSCAPI,enum=machinesets;machinedeployments
+// +openshift:validation:FeatureGateAwareEnum:requiredFeatureGate=ManagedBootImagesCPMS;ManagedBootImagesAWSCAPI,enum=machinesets;controlplanemachinesets;machinedeployments
 type MachineManagerMachineSetsResourceType string
 
 const (
-	// MachineSets represent the MachineSet resource type, which manage a group of machines and belong to the Openshift machine API group.
+	// MachineSets represent the MachineSet resource type, which manages a group of machines and may belong to either the OpenShift machine API group or the Cluster API group.
 	MachineSets MachineManagerMachineSetsResourceType = "machinesets"
+	// ControlPlaneMachineSets represent the ControlPlaneMachineSets resource type, which manage a group of control-plane machines and belong to the Openshift machine API group.
+	ControlPlaneMachineSets MachineManagerMachineSetsResourceType = "controlplanemachinesets"
+	// MachineDeployments represent the MachineDeployment resource type, which manage a group of machines and belong to the Cluster API group.
+	MachineDeployments MachineManagerMachineSetsResourceType = "machinedeployments"
 )
 
 // MachineManagerManagedAPIGroupType is a string enum used in in the MachineManager type to describe the APIGroup
 // of the resource type being registered.
-// +kubebuilder:validation:Enum:="machine.openshift.io"
+// +openshift:validation:FeatureGateAwareEnum:featureGate="",enum=machine.openshift.io
+// +openshift:validation:FeatureGateAwareEnum:featureGate=ManagedBootImagesAWSCAPI,enum=machine.openshift.io;cluster.x-k8s.io
 type MachineManagerMachineSetsAPIGroupType string
 
 const (
-	// MachineAPI represent the traditional MAPI Group that a machineset may belong to.
-	// This feature only supports MAPI machinesets at this time.
+	// MachineAPI represents the OpenShift Machine API group, which manages machine resources such as MachineSets and ControlPlaneMachineSets.
 	MachineAPI MachineManagerMachineSetsAPIGroupType = "machine.openshift.io"
+	// ClusterAPI represents the Cluster API group, which manages machine resources such as MachineSets and MachineDeployments.
+	ClusterAPI MachineManagerMachineSetsAPIGroupType = "cluster.x-k8s.io"
 )
 
 type NodeDisruptionPolicyStatus struct {
@@ -503,7 +518,7 @@ type NodeDisruptionPolicySpecFile struct {
 	// actions represents the series of commands to be executed on changes to the file at
 	// the corresponding file path. Actions will be applied in the order that
 	// they are set in this list. If there are other incoming changes to other MachineConfig
-	// entries in the same update that require a reboot, the reboot will supercede these actions.
+	// entries in the same update that require a reboot, the reboot will supersede these actions.
 	// Valid actions are Reboot, Drain, Reload, DaemonReload and None.
 	// The Reboot action and the None action cannot be used in conjunction with any of the other actions.
 	// This list supports a maximum of 10 entries.
@@ -524,7 +539,7 @@ type NodeDisruptionPolicyStatusFile struct {
 	// actions represents the series of commands to be executed on changes to the file at
 	// the corresponding file path. Actions will be applied in the order that
 	// they are set in this list. If there are other incoming changes to other MachineConfig
-	// entries in the same update that require a reboot, the reboot will supercede these actions.
+	// entries in the same update that require a reboot, the reboot will supersede these actions.
 	// Valid actions are Reboot, Drain, Reload, DaemonReload and None.
 	// The Reboot action and the None action cannot be used in conjunction with any of the other actions.
 	// This list supports a maximum of 10 entries.
@@ -549,7 +564,7 @@ type NodeDisruptionPolicySpecUnit struct {
 	// actions represents the series of commands to be executed on changes to the file at
 	// the corresponding file path. Actions will be applied in the order that
 	// they are set in this list. If there are other incoming changes to other MachineConfig
-	// entries in the same update that require a reboot, the reboot will supercede these actions.
+	// entries in the same update that require a reboot, the reboot will supersede these actions.
 	// Valid actions are Reboot, Drain, Reload, DaemonReload and None.
 	// The Reboot action and the None action cannot be used in conjunction with any of the other actions.
 	// This list supports a maximum of 10 entries.
@@ -574,7 +589,7 @@ type NodeDisruptionPolicyStatusUnit struct {
 	// actions represents the series of commands to be executed on changes to the file at
 	// the corresponding file path. Actions will be applied in the order that
 	// they are set in this list. If there are other incoming changes to other MachineConfig
-	// entries in the same update that require a reboot, the reboot will supercede these actions.
+	// entries in the same update that require a reboot, the reboot will supersede these actions.
 	// Valid actions are Reboot, Drain, Reload, DaemonReload and None.
 	// The Reboot action and the None action cannot be used in conjunction with any of the other actions.
 	// This list supports a maximum of 10 entries.
@@ -591,7 +606,7 @@ type NodeDisruptionPolicySpecSSHKey struct {
 	// actions represents the series of commands to be executed on changes to the file at
 	// the corresponding file path. Actions will be applied in the order that
 	// they are set in this list. If there are other incoming changes to other MachineConfig
-	// entries in the same update that require a reboot, the reboot will supercede these actions.
+	// entries in the same update that require a reboot, the reboot will supersede these actions.
 	// Valid actions are Reboot, Drain, Reload, DaemonReload and None.
 	// The Reboot action and the None action cannot be used in conjunction with any of the other actions.
 	// This list supports a maximum of 10 entries.
@@ -608,7 +623,7 @@ type NodeDisruptionPolicyStatusSSHKey struct {
 	// actions represents the series of commands to be executed on changes to the file at
 	// the corresponding file path. Actions will be applied in the order that
 	// they are set in this list. If there are other incoming changes to other MachineConfig
-	// entries in the same update that require a reboot, the reboot will supercede these actions.
+	// entries in the same update that require a reboot, the reboot will supersede these actions.
 	// Valid actions are Reboot, Drain, Reload, DaemonReload and None.
 	// The Reboot action and the None action cannot be used in conjunction with any of the other actions.
 	// This list supports a maximum of 10 entries.
